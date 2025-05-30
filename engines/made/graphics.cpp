@@ -106,16 +106,16 @@ void decompressImage(byte *source, Graphics::Surface &surface, uint16 cmdOffs, u
 	if ((maskFlags & ~3) || (pixelFlags & ~3) || (cmdFlags & ~1))
 		error("decompressImage() Unsupported flags: cmdFlags = %02X; maskFlags = %02X, pixelFlags = %02X", cmdFlags, maskFlags, pixelFlags);
 
-	const int offsets[] = {
-		0, 1, 2, 3,
-		320, 321, 322, 323,
-		640, 641, 642, 643,
-		960, 961, 962, 963
-	};
-
 	uint16 pitch = surface.pitch;
 	uint16 width = surface.w;
 	uint16 height = surface.h;
+
+	const int offsets[] = {
+		0, 1, 2, 3,
+		width, width + 1, width + 2, width + 3,
+		width * 2, width * 2 + 1, width * 2 + 2, width * 2 + 3,
+		width * 3, width * 3 + 1, width * 3 + 2, width * 3 + 3
+	};
 
 	// RLE decompress the buffers as needed
 	GET_BUFFER(cmd, ((height + 3) / 4) * lineSize)
@@ -214,15 +214,15 @@ void decompressImage(byte *source, Graphics::Surface &surface, uint16 cmdOffs, u
 		if (deltaFrame) {
 			for (int y = 0; y < 4 && height > 0; y++, height--) {
 				for (int x = 0; x < width; x++) {
-					if (lineBuf[x + y * 320] != 0)
-						*destPtr = lineBuf[x + y * 320];
+					if (lineBuf[x + y * width] != 0)
+						*destPtr = lineBuf[x + y * width];
 					destPtr++;
 				}
 				destPtr += pitch - width;
 			}
 		} else {
 			for (int y = 0; y < 4 && height > 0; y++, height--) {
-				memcpy(destPtr, &lineBuf[y * 320], width);
+				memcpy(destPtr, &lineBuf[y * width], width);
 				destPtr += pitch;
 			}
 		}

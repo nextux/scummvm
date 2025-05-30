@@ -349,7 +349,7 @@ void MadeEngine::handleEvents() {
 				g_system->warpMouse(_eventMouseX, _eventMouseY);
 				break;
 			case kActionCursorDown:
-				_eventMouseY = MIN<int16>(199, _eventMouseY + 1);
+				_eventMouseY = MIN<int16>(_screen->getHeight() - 1, _eventMouseY + 1);
 				g_system->warpMouse(_eventMouseX, _eventMouseY);
 				break;
 			case kActionCursorLeft:
@@ -357,7 +357,7 @@ void MadeEngine::handleEvents() {
 				g_system->warpMouse(_eventMouseX, _eventMouseY);
 				break;
 			case kActionCursorRight:
-				_eventMouseX = MIN<int16>(319, _eventMouseX + 1);
+				_eventMouseX = MIN<int16>(_screen->getWidth() - 1, _eventMouseX + 1);
 				g_system->warpMouse(_eventMouseX, _eventMouseY);
 				break;
 			case kActionMenu:
@@ -398,7 +398,7 @@ Common::Error MadeEngine::run() {
 	syncSoundSettings();
 
 	// Initialize backend
-	initGraphics(320, 200);
+	initGraphics(_screen->getWidth(), _screen->getHeight());
 
 	resetAllTimers();
 

@@ -83,12 +83,14 @@ public:
 	void drawSurface(Graphics::Surface *sourceSurface, int x, int y, int16 flipX, int16 flipY, int16 mask, const ClipInfo &clipInfo);
 
 	void setRGBPalette(byte *palRGB, int start = 0, int count = 256);
-	bool isPaletteLocked() { return _paletteLock; }
+	bool isPaletteLocked() const { return _paletteLock; }
 	void setPaletteLock(bool lock) { _paletteLock = lock; }
-	bool isScreenLocked() { return _screenLock; }
+	bool isScreenLocked() const { return _screenLock; }
 	void setScreenLock(bool lock) { _screenLock = lock; }
 	void setVisualEffectNum(int visualEffectNum) { _visualEffectNum = visualEffectNum; }
 
+	uint16 getWidth() const { return _screenWidth; }
+	uint16 getHeight() const { return _screenHeight; }
 	void setClipArea(uint16 x1, uint16 y1, uint16 x2, uint16 y2) {
 		_clipArea.clipRect = Common::Rect(x1, y1, x2, y2);
 	}
@@ -108,7 +110,7 @@ public:
 		_textY = _textRect.top;
 	}
 
-	void getTextRect(Common::Rect &textRect) {
+	void getTextRect(Common::Rect &textRect) const {
 		textRect = _textRect;
 	}
 
@@ -137,8 +139,8 @@ public:
 
 	uint16 updateChannel(uint16 channelIndex);
 	void deleteChannel(uint16 channelIndex);
-	int16 getChannelType(uint16 channelIndex);
-	int16 getChannelState(uint16 channelIndex);
+	int16 getChannelType(uint16 channelIndex) const;
+	int16 getChannelState(uint16 channelIndex) const;
 	void setChannelState(uint16 channelIndex, int16 state);
 	uint16 setChannelLocation(uint16 channelIndex, int16 x, int16 y);
 	uint16 setChannelContent(uint16 channelIndex, uint16 index);
@@ -163,7 +165,7 @@ public:
 
 	uint16 placeAnim(uint16 channelIndex, uint16 animIndex, int16 x, int16 y, int16 frameNum);
 	int16 setAnimFrame(uint16 channelIndex, int16 frameNum);
-	int16 getAnimFrame(uint16 channelIndex);
+	int16 getAnimFrame(uint16 channelIndex) const;
 
 	uint16 placeText(uint16 channelIndex, uint16 textObjectIndex, int16 x, int16 y, uint16 fontNum, int16 textColor, int16 outlineColor);
 #ifdef USE_TTS
@@ -208,6 +210,7 @@ protected:
 	int16 _outlineColor;
 	int16 _dropShadowColor;
 
+	int16 _screenWidth, _screenHeight;
 	int16 _textX, _textY;
 	Common::Rect _textRect;
 	int16 _currentFontNum;
@@ -235,4 +238,4 @@ protected:
 
 } // End of namespace Made
 
-#endif /* MADE_H */
+#endif /* MADE_SCREEN_H */

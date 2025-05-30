@@ -615,10 +615,10 @@ int16 ScriptFunctions::sfHomeText(int16 argc, int16 *argv) {
 
 int16 ScriptFunctions::sfSetTextRect(int16 argc, int16 *argv) {
 	// Used in the save/load screens of RtZ, and perhaps other places as well
-	int16 x1 = CLIP<int16>(argv[4], 1, 318);
-	int16 y1 = CLIP<int16>(argv[3], 1, 198);
-	int16 x2 = CLIP<int16>(argv[2], 1, 318);
-	int16 y2 = CLIP<int16>(argv[1], 1, 198);
+	int16 x1 = CLIP<int16>(argv[4], 1, _vm->_screen->getWidth() - 2);
+	int16 y1 = CLIP<int16>(argv[3], 1, _vm->_screen->getHeight() - 2);
+	int16 x2 = CLIP<int16>(argv[2], 1, _vm->_screen->getWidth() - 2);
+	int16 y2 = CLIP<int16>(argv[1], 1, _vm->_screen->getHeight() - 2);
 	//int16 textValue = argv[0];	// looks to be unused
 
 	_vm->_screen->setTextRect(Common::Rect(x1, y1, x2, y2));
@@ -626,8 +626,8 @@ int16 ScriptFunctions::sfSetTextRect(int16 argc, int16 *argv) {
 }
 
 int16 ScriptFunctions::sfSetTextXY(int16 argc, int16 *argv) {
-	int16 x = CLIP<int16>(argv[1], 1, 318);
-	int16 y = CLIP<int16>(argv[0], 1, 198);
+	int16 x = CLIP<int16>(argv[1], 1, _vm->_screen->getWidth() - 2);
+	int16 y = CLIP<int16>(argv[0], 1, _vm->_screen->getHeight() - 2);
 	_vm->_screen->setTextXY(x, y);
 	return 0;
 }

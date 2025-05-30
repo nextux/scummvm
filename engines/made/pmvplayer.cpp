@@ -284,7 +284,7 @@ bool PmvPlayer::decode_frame() {
 							 cmdFlags, pixelFlags, maskFlags);
 
 		_vm->_system->copyRectToScreen(_surface->getPixels(), _surface->pitch,
-									   (320 - _surface->w) / 2, (200 - _surface->h) / 2, _surface->w, _surface->h);
+									   (_vm->_screen->getWidth() - _surface->w) / 2, (_vm->_screen->getHeight() - _surface->h) / 2, _surface->w, _surface->h);
 	}
 
 	return true;

@@ -88,7 +88,23 @@ static uint rleDecompress(byte *source, const byte *end, Common::Array<byte> &de
 	return dest.size();
 }
 
-void decompressImage(byte *source, Graphics::Surface &surface, uint16 cmdOffs, uint16 pixelOffs, uint16 maskOffs, uint16 lineSize, byte cmdFlags, byte pixelFlags, byte maskFlags, bool deltaFrame) {
+// helper macro to simplify optional RLE decompression (below)
+#define GET_BUFFER(name, reserveSize)                                                      \
+	byte *name##Buffer;                                                                    \
+	Common::Array<byte> name##Array;                                                       \
+	if (name##Flags & 1) {                                                                 \
+		name##Array.reserve(reserveSize);                                                  \
+		rleDecompress(source + name##Offs, source + name##Offs + name##Size, name##Array); \
+		name##Buffer = name##Array.data();                                                 \
+	} else                                                                                 \
+		name##Buffer = source + name##Offs;
+
+void decompressImage(byte *source, Graphics::Surface &surface, uint16 cmdOffs, uint16 pixelOffs, uint16 maskOffs,
+					 uint16 cmdSize, uint16 pixelSize, uint16 maskSize,
+					 uint16 lineSize, byte cmdFlags, byte pixelFlags, byte maskFlags, bool deltaFrame) {
+
+	if ((maskFlags & ~3) || (pixelFlags & ~3) || (cmdFlags & ~1))
+		error("decompressImage() Unsupported flags: cmdFlags = %02X; maskFlags = %02X, pixelFlags = %02X", cmdFlags, maskFlags, pixelFlags);
 
 	const int offsets[] = {
 		0, 1, 2, 3,
@@ -101,13 +117,14 @@ void decompressImage(byte *source, Graphics::Surface &surface, uint16 cmdOffs, u
 	uint16 width = surface.w;
 	uint16 height = surface.h;
 
-	byte *cmdBuffer = source + cmdOffs;
-	ValueReader maskReader(source + maskOffs, (maskFlags & 2) != 0);
-	ValueReader pixelReader(source + pixelOffs, (pixelFlags & 2) != 0);
+	// RLE decompress the buffers as needed
+	GET_BUFFER(cmd, ((height + 3) / 4) * lineSize)
+	GET_BUFFER(pixel, pixelSize)
+	ValueReader pixelReader(pixelBuffer, (pixelFlags & 2) != 0);
+	GET_BUFFER(mask, maskSize)
+	ValueReader maskReader(maskBuffer, (maskFlags & 2) != 0);
 
-	if ((maskFlags != 0) && (maskFlags != 2) && (pixelFlags != 0) && (pixelFlags != 2) && (cmdFlags != 0))
-		error("decompressImage() Unsupported flags: cmdFlags = %02X; maskFlags = %02X, pixelFlags = %02X", cmdFlags, maskFlags, pixelFlags);
-
+	//
 	byte *destPtr = (byte *)surface.getPixels();
 
 	byte lineBuf[640 * 4];
@@ -222,24 +239,10 @@ void decompressMovieImage(byte *source, Graphics::Surface &surface, uint16 width
 	if ((maskFlags & ~1) || (pixelFlags & ~1) || (cmdFlags & ~1))
 		error("decompressMovieImage() Unsupported flags: cmdFlags = %02X; maskFlags = %02X, pixelFlags = %02X", cmdFlags, maskFlags, pixelFlags);
 
-	// RLE decompression buffers
-	//  Reserved sizes for pixelArray and maskArray are guesses based on input params
-	Common::Array<byte> cmdArray;
-	Common::Array<byte> pixelArray;
-	Common::Array<byte> maskArray;
-
 	uint16 bx = 0, by = 0, bw = ((width + 3) / 4) * 4;
 
 	// RLE decompress the buffers as needed
-#define GET_BUFFER(name, reserveSize)                                                      \
-	byte *name##Buffer;                                                                    \
-	if (name##Flags & 1) {                                                                 \
-		name##Array.reserve(reserveSize);                                                  \
-		rleDecompress(source + name##Offs, source + name##Offs + name##Size, name##Array); \
-		name##Buffer = name##Array.data();                                                 \
-	} else                                                                                 \
-		name##Buffer = source + name##Offs;
-
+	//  Reserved sizes for pixelArray and maskArray are guesses based on input params
 	GET_BUFFER(cmd, ((height + 3) / 4) * lineSize)
 	GET_BUFFER(pixel, pixelSize)
 	GET_BUFFER(mask, maskSize)

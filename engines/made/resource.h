@@ -120,7 +120,7 @@ public:
 	SoundResource();
 	~SoundResource() override;
 	virtual void load(byte *source, int size);
-	Audio::AudioStream *getAudioStream(int soundRate, bool loop = false);
+	Audio::AudioStream *getAudioStream(int soundRate, bool loop = false) const;
 	SoundEnergyArray *getSoundEnergyArray() const { return _soundEnergyArray; }
 	int getSoundSize() const { return _soundSize; }
 protected:
@@ -154,7 +154,7 @@ public:
 	void load(byte *source, int size);
 	int getHeight() const;
 	int getCharWidth(uint c) const;
-	int getTextWidth(const char *text);
+	int getTextWidth(const char *text) const;
 	byte *getChar(uint c) const;
 protected:
 	byte *_data;
@@ -266,4 +266,4 @@ protected:
 
 } // End of namespace Made
 
-#endif /* MADE_H */
+#endif /* MADE_RESOURCE_H */

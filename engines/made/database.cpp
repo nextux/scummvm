@@ -86,7 +86,7 @@ int16 Object::getVectorItem(int16 index) {
 		return vector[index];
 	} else if (getClass() <= 0x7FFE) {
 		int16 *vector = (int16 *)getData();
-		return READ_LE_UINT16(&vector[index]);
+		return getWord(&vector[index]);
 	} else {
 		// should never reach here
 		error("Unknown object class");
@@ -100,7 +100,7 @@ void Object::setVectorItem(int16 index, int16 value) {
 		vector[index] = value;
 	} else if (getClass() <= 0x7FFE) {
 		int16 *vector = (int16 *)getData();
-		WRITE_LE_UINT16(&vector[index], value);
+		setWord(&vector[index], value);
 	}
 }
 
@@ -122,11 +122,11 @@ int ObjectV2::load(Common::SeekableReadStream &source) {
 	byte header[4];
 	source.read(header, 4);
 
-	uint16 type = READ_LE_UINT16(header);
+	uint16 type = getWord(header);
 	if (type == 0x7FFF) {
-		_objSize = READ_LE_UINT16(header + 2);
+		_objSize = getWord(header + 2);
 	} else if (type == 0x7FFE) {
-		_objSize = READ_LE_UINT16(header + 2) * 2;
+		_objSize = getWord(header + 2) * 2;
 	} else if (type < 0x7FFE) {
 		byte count1 = header[2];
 		byte count2 = header[3];
@@ -156,11 +156,11 @@ uint16 ObjectV2::getFlags() {
 }
 
 uint16 ObjectV2::getClass() {
-	return READ_LE_UINT16(_objData);
+	return getWord(_objData);
 }
 
 uint16 ObjectV2::getSize() {
-	return READ_LE_UINT16(_objData + 2);
+	return getWord(_objData + 2);
 }
 
 byte ObjectV2::getCount1() {
@@ -192,12 +192,12 @@ int ObjectV3::load(Common::SeekableReadStream &source) {
 	byte header[6];
 	source.read(header, 6);
 
-	// uint16 flags = READ_LE_UINT16(header);
-	uint16 type = READ_LE_UINT16(header + 2);
+	// uint16 flags = getWord(header);
+	uint16 type = getWord(header + 2);
 	if (type == 0x7FFF) {
-		_objSize = READ_LE_UINT16(header + 4);
+		_objSize = getWord(header + 4);
 	} else if (type == 0x7FFE) {
-		_objSize = READ_LE_UINT16(header + 4) * 2;
+		_objSize = getWord(header + 4) * 2;
 	} else if (type < 0x7FFE) {
 		byte count1 = header[4];
 		byte count2 = header[5];
@@ -229,15 +229,15 @@ int ObjectV3::save(Common::WriteStream &dest) {
 }
 
 uint16 ObjectV3::getFlags() {
-	return READ_LE_UINT16(_objData);
+	return getWord(_objData);
 }
 
 uint16 ObjectV3::getClass() {
-	return READ_LE_UINT16(_objData + 2);
+	return getWord(_objData + 2);
 }
 
 uint16 ObjectV3::getSize() {
-	return READ_LE_UINT16(_objData + 4);
+	return getWord(_objData + 4);
 }
 
 byte ObjectV3::getCount1() {
@@ -263,17 +263,17 @@ int ObjectV3_1::load(Common::SeekableReadStream &source) {
 	byte header[6];
 	source.read(header, 6);
 
-	// uint16 flags = READ_LE_UINT16(header);
-	uint16 type = READ_LE_UINT16(header + 2);
+	// uint16 flags = getWord(header);
+	uint16 type = getWord(header + 2);
 	if (type == 0x7FFF) {
 		// array of Bytes
-		_objSize = READ_LE_UINT16(header + 4);
+		_objSize = getWord(header + 4);
 	} else if (type == 0x7FFE) {
 		// array of Words
-		_objSize = READ_LE_UINT16(header + 4) * 2;
+		_objSize = getWord(header + 4) * 2;
 	} else if (type < 0x7FFE) {
 		// Object (array of Word -> Word)
-		_objSize = READ_LE_UINT16(header + 4) * 4;
+		_objSize = getWord(header + 4) * 4;
 	}
 	_objSize += 6;
 	_objData = new byte[_objSize];
@@ -351,11 +351,11 @@ void GameDatabase::reload() {
 }
 
 int16 GameDatabase::getVar(int16 index) {
-	return (int16)READ_LE_UINT16(_gameState + index * 2);
+	return (int16)getWord(_gameState + index * 2);
 }
 
 void GameDatabase::setVar(int16 index, int16 value) {
-	WRITE_LE_UINT16(_gameState + index * 2, value);
+	setWord(_gameState + index * 2, value);
 }
 
 const char *GameDatabase::getObjectString(int16 index) {
@@ -396,7 +396,7 @@ int16 GameDatabase::getObjectProperty(int16 objectIndex, int16 propertyId) {
 	int16 *property = findObjectPropertyCached(objectIndex, propertyId, propertyFlag);
 
 	if (property) {
-		return (int16)READ_LE_UINT16(property);
+		return (int16)getWord(property);
 	} else {
 		return 0;
 	}
@@ -414,7 +414,7 @@ int16 GameDatabase::setObjectProperty(int16 objectIndex, int16 propertyId, int16
 
 	if (property) {
 		if (propertyFlag == 1) {
-			WRITE_LE_UINT16(property, value);
+			setWord(property, value);
 		} else {
 			warning("GameDatabase::setObjectProperty(%04X, %04X, %04X) Trying to set constant property",
 				objectIndex, propertyId, value);
@@ -589,7 +589,7 @@ int16 *GameDatabaseV2::findObjectProperty(int16 objectIndex, int16 propertyId, i
 
 	// First see if the property exists in the given object
 	while (count2--) {
-		if ((READ_LE_UINT16(prop) & 0x7FFF) == propertyId) {
+		if ((getWord(prop) & 0x7FFF) == propertyId) {
 			propertyFlag = obj->getFlags() & 1;
 			return propPtr1;
 		}
@@ -611,15 +611,15 @@ int16 *GameDatabaseV2::findObjectProperty(int16 objectIndex, int16 propertyId, i
 		int16 *propertyPtr = prop + count1;
 
 		while (count2--) {
-			if ((READ_LE_UINT16(prop) & 0x8000) == 0) {
-				if ((READ_LE_UINT16(prop) & 0x7FFF) == propertyId) {
+			if ((getWord(prop) & 0x8000) == 0) {
+				if ((getWord(prop) & 0x7FFF) == propertyId) {
 					propertyFlag = obj->getFlags() & 1;
 					return propPtr1;
 				} else {
 					propPtr1++;
 				}
 			} else {
-				if ((READ_LE_UINT16(prop) & 0x7FFF) == propertyId) {
+				if ((getWord(prop) & 0x7FFF) == propertyId) {
 					propertyFlag = obj->getFlags() & 1;
 					return propertyPtr;
 				}
@@ -655,50 +655,61 @@ void GameDatabaseV3::load(Common::SeekableReadStream &sourceS) {
 	if (strncmp(header, "ADVSYS", 6))
 		warning ("Unexpected database header, expected ADVSYS");
 
+	// Use the version number to determine endian-ness of this file
 	uint16 version = sourceS.readUint16LE();
-	uint16 subVersion = sourceS.readUint16LE();
+	if (version >= 0x100)
+	{
+		_bigEndian = true;
+		version = SWAP_BYTES_16(version);
+	} else
+		_bigEndian = false;
 
 	// V3.00 databases are 209, V3.10 is 210
 	if (version != 209 && version != 210)
 		warning("Unknown database version, known versions are 209 and 210");
 
+	// Wrap source stream in an endian-aware wrapper for further read ops
+	Common::SeekableReadStreamEndianWrapper sourceSE(&sourceS, _bigEndian, DisposeAfterUse::NO);
+	// continue read
+	uint16 subVersion = sourceSE.readUint16();
+
 	char dbName[19] = "";
-	sourceS.read(dbName, 18);
+	sourceSE.read(dbName, 18);
 	debug(2, "databaseVersion = %d, databaseSubVersion = %d, databaseName = %s", version, subVersion, dbName);
 
-	sourceS.readUint16LE(); // unknown, always 1?
+	sourceSE.readUint16(); // unknown, always 1?
 
-	uint32 objectIndexOffs = sourceS.readUint32LE();
-	uint16 objectCount = sourceS.readUint16LE();
-	_gameStateOffs = sourceS.readUint32LE();
-	_gameStateSize = sourceS.readUint32LE();
-	uint32 objectsOffs = sourceS.readUint32LE();
-	uint32 objectsSize = sourceS.readUint32LE();
-	_mainCodeObjectIndex = sourceS.readUint16LE();
+	uint32 objectIndexOffs = sourceSE.readUint32();
+	uint16 objectCount = sourceSE.readUint16();
+	_gameStateOffs = sourceSE.readUint32();
+	_gameStateSize = sourceSE.readUint32();
+	uint32 objectsOffs = sourceSE.readUint32();
+	uint32 objectsSize = sourceSE.readUint32();
+	_mainCodeObjectIndex = sourceSE.readUint16();
 
 	debug(2, "objectIndexOffs = %08X; objectCount = %d; gameStateOffs = %08X; gameStateSize = %d; objectsOffs = %08X; objectsSize = %d; _mainCodeObjectIndex = %04X\n", objectIndexOffs, objectCount, _gameStateOffs, _gameStateSize, objectsOffs, objectsSize, _mainCodeObjectIndex);
 
 	_gameState = new byte[_gameStateSize];
-	sourceS.seek(_gameStateOffs);
-	sourceS.read(_gameState, _gameStateSize);
+	sourceSE.seek(_gameStateOffs);
+	sourceSE.read(_gameState, _gameStateSize);
 
 	Common::Array<uint32> objectOffsets;
-	sourceS.seek(objectIndexOffs);
+	sourceSE.seek(objectIndexOffs);
 	for (uint32 i = 0; i < objectCount; i++)
-		objectOffsets.push_back(sourceS.readUint32LE());
+		objectOffsets.push_back(sourceSE.readUint32());
 
 	for (uint32 i = 0; i < objectCount; i++) {
 		Object *obj;
 		if (version == 210)
-			obj = new ObjectV3_1();
+			obj = new ObjectV3_1(_bigEndian);
 		else
 			obj = new ObjectV3();
 		// The LSB indicates if it's a constant or variable object.
 		// Constant objects are loaded from disk, while variable objects exist
 		// in the _gameState buffer.
 		if (objectOffsets[i] & 1) {
-			sourceS.seek(objectsOffs + (objectOffsets[i] ^ 1));
-			obj->load(sourceS);
+			sourceSE.seek(objectsOffs + (objectOffsets[i] ^ 1));
+			obj->load(sourceSE);
 		} else {
 			obj->load(_gameState + objectOffsets[i]);
 		}
@@ -826,10 +837,10 @@ int16 *GameDatabaseV3::findObjectProperty(int16 objectIndex, int16 propertyId, i
 
 	// First see if the property exists in the given object
 	while (count2-- > 0) {
-		if ((READ_LE_UINT16(prop) & 0x3FFF) == propertyId) {
-			if (READ_LE_UINT16(prop) & 0x4000) {
+		if ((getWord(prop) & 0x3FFF) == propertyId) {
+			if (getWord(prop) & 0x4000) {
 				propertyFlag = 1;
-				return (int16 *)_gameState + READ_LE_UINT16(propPtr1);
+				return (int16 *)_gameState + getWord(propPtr1);
 			} else {
 				propertyFlag = obj->getFlags() & 1;
 				return propPtr1;
@@ -853,11 +864,11 @@ int16 *GameDatabaseV3::findObjectProperty(int16 objectIndex, int16 propertyId, i
 		int16 *propertyPtr = prop + count1;
 
 		while (count2-- > 0) {
-			if (!(READ_LE_UINT16(prop) & 0x8000)) {
-				if ((READ_LE_UINT16(prop) & 0x3FFF) == propertyId) {
-					if (READ_LE_UINT16(prop) & 0x4000) {
+			if (!(getWord(prop) & 0x8000)) {
+				if ((getWord(prop) & 0x3FFF) == propertyId) {
+					if (getWord(prop) & 0x4000) {
 						propertyFlag = 1;
-						return (int16 *)_gameState + READ_LE_UINT16(propPtr1);
+						return (int16 *)_gameState + getWord(propPtr1);
 					} else {
 						propertyFlag = obj->getFlags() & 1;
 						return propPtr1;
@@ -866,10 +877,10 @@ int16 *GameDatabaseV3::findObjectProperty(int16 objectIndex, int16 propertyId, i
 					propPtr1++;
 				}
 			} else {
-				if ((READ_LE_UINT16(prop) & 0x3FFF) == propertyId) {
-					if (READ_LE_UINT16(prop) & 0x4000) {
+				if ((getWord(prop) & 0x3FFF) == propertyId) {
+					if (getWord(prop) & 0x4000) {
 						propertyFlag = 1;
-						return (int16 *)_gameState + READ_LE_UINT16(propertyPtr);
+						return (int16 *)_gameState + getWord(propertyPtr);
 					} else {
 						propertyFlag = obj->getFlags() & 1;
 						return propertyPtr;
@@ -913,14 +924,17 @@ int16 *GameDatabaseV3_1::findObjectProperty(int16 objectIndex, int16 propertyId,
 		while (count-- > 0) {
 
 			int16 *prop = (int16 *)obj->getData() + (2 * count);
-			uint16 readProp = READ_LE_UINT16(prop);
+			uint16 readProp = getWord(prop);
 
 			if ((readProp & 0x3FFF) == propertyId) {
+				if (readProp & 0x8000) {
+					warning("Don't know what to do with %04X over 0x7FFF!", readProp);
+				}
 				if (readProp & 0x4000) {
-					// A match w/ high-bit set indicates you go look in the Gamestate.
+					// A match w/ 15-bit set indicates you go look in the Gamestate.
 					//  "Value" is an index into the gamestate... return a ptr into gamestate.
 					propertyFlag = 1;
-					return (int16 *)_gameState + READ_LE_UINT16(prop + 1);
+					return (int16 *)_gameState + getWord(prop + 1);
 				} else {
 					// A match without high-bit indicates the value is right here (literal).
 					//  Return a ptr to the value.
@@ -928,7 +942,6 @@ int16 *GameDatabaseV3_1::findObjectProperty(int16 objectIndex, int16 propertyId,
 					return (prop + 1);
 				}
 			}
-			prop++;
 		}
 
 		// Objects are a hierarchy: if no match is found on the current object,

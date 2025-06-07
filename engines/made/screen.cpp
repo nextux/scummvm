@@ -54,8 +54,14 @@ Screen::Screen(MadeEngine *vm) : _vm(vm) {
 	_palette = new byte[768];
 	_newPalette = new byte[768];
 
-	_screenWidth = 320;
-	_screenHeight = 200;
+	if (vm->getPlatform() == Common::kPlatformMacintosh) {
+		_screenWidth = 640;
+		_screenHeight = 480;
+	} else {
+		_screenWidth = 320;
+		_screenHeight = 200;
+	}
+
 	_backgroundScreen = new Graphics::Surface();
 	_backgroundScreen->create(_screenWidth, _screenHeight, Graphics::PixelFormat::createFormatCLUT8());
 

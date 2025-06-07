@@ -22,6 +22,7 @@
 #ifndef MADE_DATABASE_H
 #define MADE_DATABASE_H
 
+#include "common/endian.h"
 #include "common/hashmap.h"
 
 namespace Common {
@@ -69,6 +70,8 @@ protected:
 	bool _freeData;
 	uint16 _objSize;
 	byte *_objData;
+	virtual inline uint16 getWord(const void *ptr) { return READ_LE_UINT16(ptr); }
+	virtual inline void setWord(void *ptr, uint16 value) { WRITE_LE_UINT16(ptr, value); }
 };
 
 class ObjectV2 : public Object {
@@ -113,8 +116,15 @@ public:
 
 class ObjectV3_1 : public ObjectV3 {
 public:
+	ObjectV3_1(bool bigEndian) : ObjectV3(), _bigEndian(bigEndian) {}
 	int load(Common::SeekableReadStream &source) override;
 	int load(byte *source) override;
+
+private:
+	// V3_1 objects may be either endianness depending on source platform
+	bool _bigEndian;
+	inline uint16 getWord(const void *ptr) override { return _bigEndian ? READ_BE_UINT16(ptr) : READ_LE_UINT16(ptr); }
+	inline void setWord(void *ptr, uint16 value) override { return _bigEndian ? WRITE_BE_UINT16(ptr, value) : WRITE_LE_UINT16(ptr, value); }
 };
 
 
@@ -172,6 +182,8 @@ protected:
 	Common::String _filename, _redFilename;
 	virtual void load(Common::SeekableReadStream &sourceS) = 0;
 	virtual void reloadFromStream(Common::SeekableReadStream &sourceS) = 0;
+	virtual inline uint16 getWord(const void *ptr) { return READ_LE_UINT16(ptr); }
+	virtual inline void setWord(void *ptr, uint16 value) { WRITE_LE_UINT16(ptr, value); }
 };
 
 class GameDatabaseV2 : public GameDatabase {
@@ -198,6 +210,10 @@ public:
 	int16 savegame(const char *filename, const char *description, int16 version) override;
 	int16 loadgame(const char *filename, int16 version) override;
 protected:
+	bool _bigEndian;
+	inline uint16 getWord(const void *ptr) override { return _bigEndian ? READ_BE_UINT16(ptr) : READ_LE_INT16(ptr); }
+	inline void setWord(void *ptr, uint16 value) override { return _bigEndian ? WRITE_BE_UINT16(ptr, value) : WRITE_LE_INT16(ptr, value); }
+
 	char *_gameText;
 	uint32 _gameStateOffs;
 	void load(Common::SeekableReadStream &sourceS) override;
@@ -212,4 +228,4 @@ public:
 
 } // End of namespace Made
 
-#endif /* MADE_H */
+#endif /* MADE_DATABASE_H */

@@ -42,13 +42,17 @@ public:
 
 	int16 callFunction(uint16 index, int16 argc, int16 *argv)  {
 		if (index >= _externalFuncs.size())
-			error("ScriptFunctions::callFunction() Invalid function index %d", index);
+			error("ScriptFunctions::callFunction() Invalid function index %d (max %d)", index, _externalFuncs.size());
 		debug(4, "%s", _externalFuncNames[index]);
 		return (*_externalFuncs[index])(argc, argv);
 	}
 
 	void setupExternalsTable();
-	const char* getFuncName(int index) { return _externalFuncNames[index]; }
+	const char* getFuncName(uint16 index) {
+		if (index >= _externalFuncs.size())
+			error("ScriptFunctions::getFuncName() Invalid function index %d (max: %d)", index, _externalFuncs.size());
+		return _externalFuncNames[index];
+	}
 	int getCount() const { return _externalFuncs.size(); }
 
 private:
@@ -180,8 +184,11 @@ protected:
 	int16 sfMovieCall(int16 argc, int16 *argv);
 	int16 sfCursorXY(int16 argc, int16 *argv);
 	int16 sfSoundFile(int16 argc, int16 *argv);
+	int16 sfLaunchedGame(int16 argc, int16 *argv);
+
+	int16 sfUnknown(int16 argc, int16 *argv);
 };
 
 } // End of namespace Made
 
-#endif /* MADE_H */
+#endif /* MADE_SCRIPTFUNCS_H */

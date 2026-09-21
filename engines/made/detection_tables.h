@@ -397,7 +397,7 @@ static const MadeGameDescription gameDescriptions[] = {
 		GID_RTZ,
 		0,
 		GF_CD_COMPRESSED,
-		3, 0,
+		3, 1,
 	},
 
 	{

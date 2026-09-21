@@ -927,9 +927,9 @@ int16 *GameDatabaseV3_1::findObjectProperty(int16 objectIndex, int16 propertyId,
 			uint16 readProp = getWord(prop);
 
 			if ((readProp & 0x3FFF) == propertyId) {
-				if (readProp & 0x8000) {
+				/* if (readProp & 0x8000) {
 					warning("Don't know what to do with %04X over 0x7FFF!", readProp);
-				}
+				} */
 				if (readProp & 0x4000) {
 					// A match w/ 15-bit set indicates you go look in the Gamestate.
 					//  "Value" is an index into the gamestate... return a ptr into gamestate.

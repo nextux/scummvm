@@ -202,10 +202,16 @@ void ScriptFunctions::setupExternalsTable() {
 		External(sfIsSlowSystem);
 	}
 
-	if (_vm->getGameID() == GID_RSBESTNDE || _vm->getGameID() == GID_RSBUSYNDE) {
+	if ((_vm->getGameID() == GID_RTZ && _vm->getPlatform() == Common::kPlatformMacintosh) ||
+		_vm->getGameID() == GID_RSBESTNDE || _vm->getGameID() == GID_RSBUSYNDE) {
 		External(sfMovieCall);
 		External(sfCursorXY);
 		External(sfSoundFile);
+	}
+
+	if (_vm->getGameID() == GID_RTZ && _vm->getPlatform() == Common::kPlatformMacintosh) {
+		External(sfLaunchedGame);
+		External(sfUnknown); // "exFACEICON", 3 args, unknown use (and never called)
 	}
 }
 #undef External
@@ -230,6 +236,8 @@ int16 ScriptFunctions::sfDrawPicture(int16 argc, int16 *argv) {
 }
 
 int16 ScriptFunctions::sfClearScreen(int16 argc, int16 *argv) {
+	// TODO: Sometimes, this comes with a single argument, but it's unknown what that means.
+	//  Clearing to argv[0] gives wrong colors instead of just 0.
 	if (_vm->getGameID() == GID_LGOP2) {
 		_vm->stopTextToSpeech();
 	}
@@ -273,7 +281,8 @@ int16 ScriptFunctions::sfGetKey(int16 argc, int16 *argv) {
 }
 
 int16 ScriptFunctions::sfSetVisualEffect(int16 argc, int16 *argv) {
-	_vm->_screen->setVisualEffectNum(argv[0]);
+	for (int i = 0; i < argc; i++)
+		_vm->_screen->setVisualEffectNum(argv[i]);
 	return 0;
 }
 
@@ -798,6 +807,7 @@ int16 ScriptFunctions::sfPlayCdSegment(int16 argc, int16 *argv) {
 }
 
 int16 ScriptFunctions::sfPrintf(int16 argc, int16 *argv) {
+	// TODO: Varargs support for this function
 	const char *text = _vm->_dat->getObjectString(argv[argc - 1]);
 	debug(4, "--> text = %s", text);
 	return 0;
@@ -1233,6 +1243,27 @@ int16 ScriptFunctions::sfSoundFile(int16 argc, int16 *argv) {
 
 	playSound(soundRes, true);
 
+	return 0;
+}
+
+int16 ScriptFunctions::sfLaunchedGame(int16 argc, int16 *argv) {
+	// "Launched" savegame - When game is launched by double-clicking a savefile,
+	//  this function (fired after title screen) will load game state,
+	// or do nothing if the game was launched without an arg.
+	int16 version = argv[0];
+
+	// But since we do not (yet) have launcher-managed savegames, we do nothing for now.
+	return 0;
+}
+
+// ///////////////////////////////////////
+
+int16 ScriptFunctions::sfUnknown(int16 argc, int16 *argv) {
+	// This is a placeholder for an unknown function.
+	//  It prints argc and argv.
+	warning("Unknown script function called: argc=%d", argc);
+	for (int i = 0; i < argc; i++)
+		warning(" argv[%d] = %d", i, argv[i]);
 	return 0;
 }
 

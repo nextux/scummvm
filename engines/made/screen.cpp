@@ -75,13 +75,14 @@ Screen::Screen(MadeEngine *vm) : _vm(vm) {
 	_workScreenDrawCtx.destSurface = _workScreen;
 	_clipArea.destSurface = _workScreen;
 
-	// Screen mask is only needed in v2 games
-	if (_vm->getGameID() != GID_RTZ && _vm->getGameID() != GID_RSBESTNDE && _vm->getGameID() != GID_RSBUSYNDE) {
+	// Screen mask is only needed in v1 / v2 games
+	if (_vm->getGameID() == GID_MANHOLE || _vm->getGameID() == GID_MANHOLE_NE || _vm->getGameID() == GID_LGOP2 || _vm->getGameID() == GID_RODNEY) {
 		_screenMask = new Graphics::Surface();
 		_screenMask->create(_screenWidth, _screenHeight, Graphics::PixelFormat::createFormatCLUT8());
 		_maskDrawCtx.clipRect = Common::Rect(_screenWidth, _screenHeight);
 		_maskDrawCtx.destSurface = _screenMask;
-	}
+	} else
+		_screenMask = nullptr;
 
 	for (int i = 0; i <= 3; i++)
 		_excludeClipAreaEnabled[i] = false;
@@ -131,8 +132,7 @@ Screen::~Screen() {
 
 	delete _backgroundScreen;
 	delete _workScreen;
-	if (_vm->getGameID() != GID_RTZ && _vm->getGameID() != GID_RSBESTNDE && _vm->getGameID() != GID_RSBUSYNDE)
-		delete _screenMask;
+	delete _screenMask;
 	delete _fx;
 }
 
@@ -211,7 +211,7 @@ void Screen::drawSurface(Graphics::Surface *sourceSurface, int x, int y, int16 f
 	source = (byte *)sourceSurface->getBasePtr(0, startY);
 	dest = (byte *)clipInfo.destSurface->getBasePtr(x, y);
 	// only set up maskp if game uses masking and mask requested in f.call
-	if (mask && (_vm->getGameID() != GID_RTZ && _vm->getGameID() != GID_RSBESTNDE && _vm->getGameID() != GID_RSBUSYNDE))
+	if (mask && _screenMask)
 		maskp = (byte *)_maskDrawCtx.destSurface->getBasePtr(x, y);
 
 	int32 sourcePitch, linePtrAdd, sourceAdd;
@@ -914,7 +914,7 @@ void Screen::printTextEx(const char *text, int16 x, int16 y, int16 fontNum, int1
 	setFont(oldFontNum);
 	_fontDrawCtx = oldFontDrawCtx;
 
-	if (_vm->getGameID() == GID_MANHOLE || _vm->getGameID() == GID_RODNEY) {
+	if (_vm->getGameID() == GID_MANHOLE || _vm->getGameID() == GID_MANHOLE_NE || _vm->getGameID() == GID_RODNEY) {
 		_vm->sayText(text);
 	}
 }

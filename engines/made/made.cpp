@@ -79,7 +79,7 @@ MadeEngine::MadeEngine(OSystem *syst, const MadeGameDescription *gameDesc) : Eng
 	} else if (getGameID() == GID_RSBESTNDE || getGameID() == GID_RSBUSYNDE) {
 		_dat = new GameDatabaseV3_1(this);
 	} else {
-		error("Unknown GameID");
+		error("Unknown Game Version");
 	}
 
 	_script = new ScriptInterpreter(this);
@@ -106,10 +106,9 @@ MadeEngine::MadeEngine(OSystem *syst, const MadeGameDescription *gameDesc) : Eng
 
 	// Set default sound frequency
 	switch (getGameID()) {
-	case GID_RODNEY:
-		_soundRate = 11025;
-		break;
 	case GID_MANHOLE:
+	case GID_MANHOLE_NE:
+	case GID_RODNEY:
 		_soundRate = 11025;
 		break;
 	case GID_LGOP2:
@@ -463,12 +462,10 @@ Common::Error MadeEngine::run() {
 		}
 	} else if (getGameID() == GID_MANHOLE) {
 		_dat->open("manhole.dat");
-
-		if (getVersion() == 2) {
-			_res->open("manhole.prj");
-		} else {
-			_res->openResourceBlocks();
-		}
+		_res->openResourceBlocks();
+	} else if (getGameID() == GID_MANHOLE_NE) {
+		_dat->open("manhole.dat");
+		_res->open("manhole.prj");
 
 		if (ConfMan.hasKey("windows_cursors") && ConfMan.getBool("windows_cursors"))
 			loadWin16Cursor("manhole");

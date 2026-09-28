@@ -74,7 +74,7 @@ protected:
 	virtual inline void setWord(void *ptr, uint16 value) { WRITE_LE_UINT16(ptr, value); }
 };
 
-class ObjectV2 : public Object {
+class ObjectV1 : public Object {
 public:
 	int load(Common::SeekableReadStream &source) override;
 	int load(byte *source) override;
@@ -91,9 +91,10 @@ public:
 	}
 };
 
-class ObjectV1 : public ObjectV2 {
+class ObjectV2 : public ObjectV1 {
 public:
-	int load(Common::SeekableReadStream &source) override;
+	byte getCount1() override;
+	byte getCount2() override;
 };
 
 class ObjectV3 : public Object {
@@ -186,19 +187,27 @@ protected:
 	virtual inline void setWord(void *ptr, uint16 value) { WRITE_LE_UINT16(ptr, value); }
 };
 
-class GameDatabaseV2 : public GameDatabase {
+class GameDatabaseV1 : public GameDatabase {
 public:
-	GameDatabaseV2(MadeEngine *vm);
-	~GameDatabaseV2() override;
+	GameDatabaseV1(MadeEngine *vm);
+	~GameDatabaseV1() override;
 	int16 *findObjectProperty(int16 objectIndex, int16 propertyId, int16 &propertyFlag) override;
 	const char *getString(uint16 offset) override;
 	bool getSavegameDescription(const char *filename, Common::String &description, int16 version) override;
 	int16 savegame(const char *filename, const char *description, int16 version) override;
 	int16 loadgame(const char *filename, int16 version) override;
+
 protected:
 	char *_gameText;
 	void load(Common::SeekableReadStream &sourceS) override;
 	void reloadFromStream(Common::SeekableReadStream &sourceS) override;
+};
+
+class GameDatabaseV2 : public GameDatabaseV1 {
+public:
+	GameDatabaseV2(MadeEngine *vm);
+protected:
+	void load(Common::SeekableReadStream &sourceS) override;
 };
 
 class GameDatabaseV3 : public GameDatabase {

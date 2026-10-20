@@ -22,349 +22,242 @@
 #include "made/mpgplayer.h"
 #include "made/made.h"
 #include "made/screen.h"
+#include "made/script.h"
 
-#include "common/array.h"
+#include "common/archive.h"
 #include "common/debug.h"
 #include "common/endian.h"
 #include "common/events.h"
 #include "common/file.h"
-#include "common/list.h"
 #include "common/str.h"
 #include "common/system.h"
+#include "common/util.h"
 
+#include "audio/mixer.h"
 #include "engines/util.h"
-
 #include "graphics/paletteman.h"
+#include "graphics/pixelformat.h"
 #include "graphics/surface.h"
-
 #include "video/mpegps_decoder.h"
 
 namespace Made {
 
-MpgPlayer::MpgPlayer(MadeEngine *vm, Audio::Mixer *mixer)
-	: _vm(vm), _mixer(mixer), _mpegDecoder(nullptr), _scaledSurface(nullptr),
-	  _streamType(kMpgStreamUnknown), _paletteSaved(false),
-	  _frameNumber(0), _frameDelay(33), _width(320), _height(240) {
-	memset(_savedPalette, 0, sizeof(_savedPalette));
+MpgPlayer::MpgPlayer(MadeEngine *vm, Audio::Mixer *mixer) : _vm(vm), _mixer(mixer) {
 }
 
 MpgPlayer::~MpgPlayer() {
-	close();
 }
 
-bool MpgPlayer::resolveMpgPath(const char *filename, Common::Path &outPath) const {
-	Common::String normalized(filename);
-	for (uint i = 0; i < normalized.size(); ++i) {
-		if (normalized[i] == '\\' || normalized[i] == ':')
-			normalized.setChar('/', i);
-	}
-	while (normalized.hasPrefix("/"))
-		normalized.deleteChar(0);
-
-	Common::String baseNoExt = normalized;
-	if (baseNoExt.hasSuffixIgnoreCase(".pmv") || baseNoExt.hasSuffixIgnoreCase(".mpg")) {
-		baseNoExt = Common::String(baseNoExt.c_str(), baseNoExt.size() - 4);
+Common::Path MpgPlayer::resolveMpgPath(const char *filename) const {
+	Common::String name(filename);
+	for (uint i = 0; i < name.size(); ++i) {
+		if (name[i] == '\\')
+			name.setChar('/', i);
 	}
 
-	Common::Array<Common::String> candidates;
-	candidates.push_back(baseNoExt + ".mpg");
-
-	uint32 slashPos = baseNoExt.findLastOf('/');
-	if (slashPos != Common::String::npos) {
-		Common::String fileOnly = baseNoExt.substr(slashPos + 1);
-		candidates.push_back(fileOnly + ".mpg");
+	if (name.size() >= 4 && name.substr(name.size() - 4).equalsIgnoreCase(".pmv")) {
+		name = name.substr(0, name.size() - 4) + ".MPG";
 	}
 
-	for (uint i = 0; i < candidates.size(); ++i) {
-		Common::Path candidatePath(candidates[i], '/');
-		if (Common::File::exists(candidatePath)) {
-			outPath = candidatePath;
-			return true;
-		}
+	Common::Path candidates[3];
+	candidates[0] = Common::Path(name, '/');
+
+	Common::String upperName = name;
+	upperName.toUppercase();
+	candidates[1] = Common::Path(upperName, '/');
+
+	Common::String lowerName = name;
+	lowerName.toLowercase();
+	candidates[2] = Common::Path(lowerName, '/');
+
+	for (int i = 0; i < 3; ++i) {
+		if (SearchMan.hasFile(candidates[i]))
+			return candidates[i];
 	}
 
-	return false;
-}
-
-bool MpgPlayer::hasFile(const char *filename) const {
-	Common::Path resolvedPath;
-	return resolveMpgPath(filename, resolvedPath);
-}
-
-MpgStreamType MpgPlayer::inspectHeader(const Common::Path &path, uint16 &width, uint16 &height, uint16 &frameDelay) const {
-	Common::File fd;
-	if (!fd.open(path))
-		return kMpgStreamUnknown;
-
-	byte headerBuf[4096];
-	uint32 bytesRead = fd.read(headerBuf, sizeof(headerBuf));
-	fd.close();
-
-	if (bytesRead < 12)
-		return kMpgStreamUnknown;
-
-	uint32 firstCode = READ_BE_UINT32(headerBuf);
-	// Standard MPEG-1 files start with Pack Header (0x000001BA) or Sequence Header (0x000001B3)
-	if (firstCode != 0x000001BA && firstCode != 0x000001B3 && (firstCode & 0xFFFFFF00) != 0x00000100)
-		return kMpgStreamUnknown;
-
-	width = 320;
-	height = 240;
-	frameDelay = 33;
-
-	// Scan for the MPEG-1 Sequence Header (0x000001B3)
-	for (uint32 i = 0; i <= bytesRead - 12; ++i) {
-		if (READ_BE_UINT32(headerBuf + i) == 0x000001B3) {
-			uint32 seqInfo = READ_BE_UINT32(headerBuf + i + 4);
-			uint16 bitRateFlags = READ_BE_UINT16(headerBuf + i + 8);
-
-			width = (seqInfo >> 20) & 0x0FFF;
-			height = (seqInfo >> 8) & 0x0FFF;
-			byte frameRateCode = seqInfo & 0x0F;
-
-			static const uint16 kMpegFrameDelays[9] = {
-				33, // 0: fallback
-				42, // 1: 23.976 fps
-				42, // 2: 24 fps
-				40, // 3: 25 fps
-				33, // 4: 29.97 fps
-				33, // 5: 30 fps
-				20, // 6: 50 fps
-				17, // 7: 59.94 fps
-				17  // 8: 60 fps
-			};
-
-			if (frameRateCode < ARRAYSIZE(kMpegFrameDelays))
-				frameDelay = kMpegFrameDelays[frameRateCode];
-
-			debug(2, "MpgPlayer::inspectHeader(%s): %dx%d, rateCode=%d (%d ms), flags=%04X",
-				  path.toString().c_str(), width, height, frameRateCode, frameDelay, bitRateFlags);
+	int32 lastSlash = -1;
+	for (int32 i = (int32)name.size() - 1; i >= 0; --i) {
+		if (name[i] == '/') {
+			lastSlash = i;
 			break;
 		}
 	}
+	if (lastSlash >= 0) {
+		Common::String baseName = name.substr(lastSlash + 1);
+		Common::Path basePath(baseName, '/');
+		if (SearchMan.hasFile(basePath))
+			return basePath;
+	}
 
-	return kMpgStreamStandard;
+	return candidates[0];
 }
 
-bool MpgPlayer::load(const char *filename) {
-	close();
+MpgStreamType MpgPlayer::inspectHeader(Common::SeekableReadStream &stream) const {
+	int64 origPos = stream.pos();
+	stream.seek(0);
 
-	Common::Path mpgPath;
-	if (!resolveMpgPath(filename, mpgPath)) {
-		warning("MpgPlayer::load() Failed to find MPEG file for '%s'", filename);
+	if (stream.size() < 4) {
+		stream.seek(origPos);
+		return kMpgStreamUnknown;
+	}
+
+	uint32 startCode = stream.readUint32BE();
+	stream.seek(origPos);
+
+	if (startCode == 0x000001BA || startCode == 0x000001B3) {
+		return kMpgStreamSystemOrVideo;
+	}
+
+	if ((startCode & 0xFFFFFF00) == 0x00000100) {
+		return kMpgStreamReelMagic;
+	}
+
+	return kMpgStreamUnknown;
+}
+
+bool MpgPlayer::play(const char *filename, int16 callbackScriptObj) {
+	Common::Path mpgPath = resolveMpgPath(filename);
+
+	Common::File probeFile;
+	if (!probeFile.open(mpgPath)) {
+		warning("MpgPlayer::play(): Failed to open MPEG file '%s' (from '%s')",
+				mpgPath.toString().c_str(), filename);
 		return false;
 	}
 
-	_streamType = inspectHeader(mpgPath, _width, _height, _frameDelay);
-	if (_streamType == kMpgStreamUnknown) {
-		warning("MpgPlayer::load() Unrecognized MPEG header in '%s'", mpgPath.toString().c_str());
+	MpgStreamType streamType = inspectHeader(probeFile);
+	probeFile.close();
+
+	if (streamType == kMpgStreamUnknown) {
+		warning("MpgPlayer::play(): Unrecognized MPEG header in '%s'", mpgPath.toString().c_str());
 		return false;
 	}
 
-	if (_streamType == kMpgStreamReelMagic) {
-		warning("MpgPlayer::load() ReelMagic MPEG format is not yet implemented for '%s'", mpgPath.toString().c_str());
+	if (streamType == kMpgStreamReelMagic) {
+		warning("MpgPlayer::play(): ReelMagic MPEG format in '%s' is not yet supported", mpgPath.toString().c_str());
 		return false;
 	}
 
-	// First cutscene after the opening credits finish
-	Common::String upperName(filename);
-	upperName.toUppercase();
-	if (upperName.contains("FWIZ01X1")) {
+	Common::String baseCheck(filename);
+	if (baseCheck.equalsIgnoreCase("FWIZ01X1.PMV") || baseCheck.equalsIgnoreCase("FWIZ01X1.MPG")) {
 		_vm->_openingCreditsOpen = false;
 	}
 
-	// Save the current 8-bit CLUT8 palette before switching screen to RGB
-	if (_vm->_system->getScreenFormat().isCLUT8()) {
-		_vm->_system->getPaletteManager()->grabPalette(_savedPalette, 0, 256);
-		_paletteSaved = true;
+	Video::MPEGPSDecoder decoder;
+	if (!decoder.loadFile(mpgPath)) {
+		warning("MpgPlayer::play(): Video::MPEGPSDecoder failed to load '%s'", mpgPath.toString().c_str());
+		return false;
 	}
+
+	const uint16 screenW = _vm->_screen->getWidth();
+	const uint16 screenH = _vm->_screen->getHeight();
+
+	byte savedPalette[256 * 3];
+	_vm->_system->getPaletteManager()->grabPalette(savedPalette, 0, 256);
 
 	Common::List<Graphics::PixelFormat> supportedFormats = _vm->_system->getSupportedFormats();
-	for (Common::List<Graphics::PixelFormat>::iterator it = supportedFormats.begin(); it != supportedFormats.end(); ) {
-		if (it->isCLUT8())
-			it = supportedFormats.erase(it);
-		else
-			++it;
-	}
-
-	if (!supportedFormats.empty()) {
-		initGraphics(_vm->_screen->getWidth(), _vm->_screen->getHeight(), supportedFormats);
-	}
-
-	_mpegDecoder = new Video::MPEGPSDecoder();
-	if (!_mpegDecoder->loadFile(mpgPath)) {
-		warning("MpgPlayer::load() Failed to initialize MPEG decoder for '%s'", mpgPath.toString().c_str());
-		delete _mpegDecoder;
-		_mpegDecoder = nullptr;
-
-		if (_paletteSaved) {
-			initGraphics(_vm->_screen->getWidth(), _vm->_screen->getHeight());
-			_vm->_system->getPaletteManager()->setPalette(_savedPalette, 0, 256);
-			_paletteSaved = false;
-		}
-		return false;
-	}
-
-	_frameNumber = 0;
-
-	Graphics::Surface *screenSurf = _vm->_system->lockScreen();
-	if (screenSurf) {
-		screenSurf->fillRect(Common::Rect(0, 0, screenSurf->w, screenSurf->h), 0);
-		_vm->_system->unlockScreen();
-		_vm->_system->updateScreen();
-	}
-
-	_mpegDecoder->start();
-	return true;
-}
-
-bool MpgPlayer::isPlaying() const {
-	return _mpegDecoder != nullptr && _mpegDecoder->isPlaying() && !_mpegDecoder->endOfVideo();
-}
-
-bool MpgPlayer::decodeFrame() {
-	if (!_mpegDecoder || _mpegDecoder->endOfVideo())
-		return false;
-
-	const Graphics::Surface *frame = _mpegDecoder->decodeNextFrame();
-	if (!frame)
-		return !_mpegDecoder->endOfVideo();
-
-	Graphics::PixelFormat screenFormat = _vm->_system->getScreenFormat();
-	const Graphics::Surface *blitSurf = frame;
-	Graphics::Surface *convertedSurf = nullptr;
-
-	if (frame->format != screenFormat) {
-		convertedSurf = frame->convertTo(screenFormat);
-		blitSurf = convertedSurf;
-	}
-
-	uint16 screenW = _vm->_screen->getWidth();
-	uint16 screenH = _vm->_screen->getHeight();
-
-	// Scale MPEG frame (e.g. 352x240 SIF) to fill the screen resolution (640x480 on Mac)
-	if ((blitSurf->w != screenW || blitSurf->h != screenH) &&
-		(screenFormat.bytesPerPixel == 2 || screenFormat.bytesPerPixel == 4)) {
-
-		if (!_scaledSurface || _scaledSurface->w != screenW || _scaledSurface->h != screenH ||
-			_scaledSurface->format != screenFormat) {
-			if (_scaledSurface) {
-				_scaledSurface->free();
-				delete _scaledSurface;
-			}
-			_scaledSurface = new Graphics::Surface();
-			_scaledSurface->create(screenW, screenH, screenFormat);
-		}
-
-		uint16 srcW = blitSurf->w;
-		uint16 srcH = blitSurf->h;
-
-		if (screenFormat.bytesPerPixel == 2) {
-			for (uint16 y = 0; y < screenH; ++y) {
-				uint16 srcY = (uint32)(y * srcH) / screenH;
-				const uint16 *srcRow = (const uint16 *)blitSurf->getBasePtr(0, srcY);
-				uint16 *dstRow = (uint16 *)_scaledSurface->getBasePtr(0, y);
-				for (uint16 x = 0; x < screenW; ++x) {
-					dstRow[x] = srcRow[(uint32)(x * srcW) / screenW];
-				}
-			}
-		} else if (screenFormat.bytesPerPixel == 4) {
-			for (uint16 y = 0; y < screenH; ++y) {
-				uint16 srcY = (uint32)(y * srcH) / screenH;
-				const uint32 *srcRow = (const uint32 *)blitSurf->getBasePtr(0, srcY);
-				uint32 *dstRow = (uint32 *)_scaledSurface->getBasePtr(0, y);
-				for (uint16 x = 0; x < screenW; ++x) {
-					dstRow[x] = srcRow[(uint32)(x * srcW) / screenW];
-				}
-			}
-		}
-
-		blitSurf = _scaledSurface;
-	}
-
-	int16 dstX = MAX<int16>(0, (screenW - blitSurf->w) / 2);
-	int16 dstY = MAX<int16>(0, (screenH - blitSurf->h) / 2);
-	uint16 copyW = MIN<uint16>(blitSurf->w, screenW - dstX);
-	uint16 copyH = MIN<uint16>(blitSurf->h, screenH - dstY);
-
-	_vm->_system->copyRectToScreen(blitSurf->getPixels(), blitSurf->pitch,
-								   dstX, dstY, copyW, copyH);
-
-	if (convertedSurf) {
-		convertedSurf->free();
-		delete convertedSurf;
-	}
-
-	return true;
-}
-
-void MpgPlayer::waitForNextFrame() {
-	if (_mpegDecoder) {
-		uint32 waitTime = _mpegDecoder->getTimeToNextFrame();
-		if (waitTime > 0)
-			g_system->delayMillis(MIN<uint32>(waitTime, 100));
-	}
-}
-
-void MpgPlayer::close() {
-	if (_mpegDecoder) {
-		_mpegDecoder->close();
-		delete _mpegDecoder;
-		_mpegDecoder = nullptr;
-	}
-
-	if (_scaledSurface) {
-		_scaledSurface->free();
-		delete _scaledSurface;
-		_scaledSurface = nullptr;
-	}
-
-	if (_paletteSaved) {
-		initGraphics(_vm->_screen->getWidth(), _vm->_screen->getHeight());
-		_vm->_system->getPaletteManager()->setPalette(_savedPalette, 0, 256);
-		_vm->_screen->showWorkScreen();
-		_vm->_system->updateScreen();
-		_paletteSaved = false;
-	}
-
-	_streamType = kMpgStreamUnknown;
-}
-
-bool MpgPlayer::handleEvents() {
-	bool aborted = false;
-	Common::Event event;
-	while (_vm->_system->getEventManager()->pollEvent(event)) {
-		switch (event.type) {
-		case Common::EVENT_KEYDOWN:
-			if (event.kbd.keycode == Common::KEYCODE_ESCAPE) {
-				aborted = true;
-				_vm->stopTextToSpeech();
-			}
-			break;
-		default:
-			break;
-		}
-	}
-	return aborted;
-}
-
-bool MpgPlayer::play(const char *filename) {
-	bool aborted = false;
-
-	if (load(filename)) {
-		while (!_vm->shouldQuit() && !aborted && isPlaying()) {
-			if (!decodeFrame())
+	Graphics::PixelFormat videoFormat = decoder.getPixelFormat();
+	if (videoFormat.isCLUT8() && !supportedFormats.empty()) {
+		for (Common::List<Graphics::PixelFormat>::const_iterator it = supportedFormats.begin();
+			 it != supportedFormats.end(); ++it) {
+			if (!it->isCLUT8()) {
+				videoFormat = *it;
 				break;
+			}
+		}
+	}
 
-			waitForNextFrame();
-			_vm->_system->updateScreen();
+	initGraphics(screenW, screenH, &videoFormat);
+	Graphics::PixelFormat screenFormat = _vm->_system->getScreenFormat();
 
-			_frameNumber++;
-			aborted = handleEvents();
+	_vm->_system->fillScreen(0);
+	_vm->_system->updateScreen();
+
+	ScriptInterpreter si(_vm);
+	int16 frameNumber = 0;
+	bool aborted = false;
+
+	decoder.start();
+
+	while (!_vm->shouldQuit() && !aborted && !decoder.endOfVideo()) {
+		if (decoder.needsUpdate()) {
+			// If called via sfMovieCall, execute the per-frame script callback
+			if (callbackScriptObj != 0) {
+				int16 playing = si.runScript(callbackScriptObj, 1, &frameNumber);
+				debug(3, "MpgPlayer::play(): callback script %04X frame %d returned %d",
+					  callbackScriptObj, frameNumber, playing);
+				if (!playing) {
+					aborted = true;
+					break;
+				}
+			}
+
+			const Graphics::Surface *frame = decoder.decodeNextFrame();
+			if (frame) {
+				if (frameNumber == 0) {
+					debug(1, "MpgPlayer::play(): '%s' video %dx%d -> screen %dx%d (callback=%04X)",
+						  mpgPath.toString().c_str(), frame->w, frame->h, screenW, screenH, callbackScriptObj);
+				}
+
+				Graphics::Surface *converted = nullptr;
+				const Graphics::Surface *outFrame = frame;
+
+				if (frame->format != screenFormat) {
+					converted = frame->convertTo(screenFormat);
+					outFrame = converted;
+				}
+
+				if (outFrame->w != screenW || outFrame->h != screenH) {
+					Graphics::Surface *scaled = outFrame->scale(screenW, screenH);
+					_vm->_system->copyRectToScreen(scaled->getPixels(), scaled->pitch,
+												   0, 0, scaled->w, scaled->h);
+					scaled->free();
+					delete scaled;
+				} else {
+					_vm->_system->copyRectToScreen(outFrame->getPixels(), outFrame->pitch,
+												   0, 0, outFrame->w, outFrame->h);
+				}
+
+				if (converted) {
+					converted->free();
+					delete converted;
+				}
+
+				_vm->_system->updateScreen();
+				frameNumber++;
+			}
 		}
 
-		close();
+		// When playing via sfPlayMovie (no script callback), check ESC directly
+		if (callbackScriptObj == 0) {
+			Common::Event event;
+			while (_vm->_system->getEventManager()->pollEvent(event)) {
+				if (event.type == Common::EVENT_KEYDOWN && event.kbd.keycode == Common::KEYCODE_ESCAPE) {
+					aborted = true;
+					_vm->stopTextToSpeech();
+					break;
+				}
+			}
+		}
+
+		if (!aborted) {
+			uint32 waitMs = MIN<uint32>(decoder.getTimeToNextFrame(), 10);
+			if (waitMs > 0)
+				_vm->_system->delayMillis(waitMs);
+		}
 	}
+
+	decoder.close();
+
+	// Restore 8-bit CLUT8 mode and palette for the MADE engine
+	Graphics::PixelFormat clut8 = Graphics::PixelFormat::createFormatCLUT8();
+	initGraphics(screenW, screenH, &clut8);
+	_vm->_system->getPaletteManager()->setPalette(savedPalette, 0, 256);
+	_vm->_screen->showWorkScreen();
+	_vm->_system->updateScreen();
+
+	if (callbackScriptObj != 0)
+		return true;
 
 	return !aborted;
 }

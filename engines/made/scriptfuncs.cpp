@@ -863,11 +863,13 @@ int16 ScriptFunctions::sfGetTextWidth(int16 argc, int16 *argv) {
 
 int16 ScriptFunctions::sfPlayMovie(int16 argc, int16 *argv) {
 	const char *movieName = _vm->_dat->getObjectString(argv[1]);
+	debug(1, "sfPlayMovie: movieName='%s', argv[0]=%d", movieName ? movieName : "(null)", argv[0]);
 	CursorMan.showMouse(false);
 	bool completed = false;
-	if (_vm->_mpgPlayer->hasFile(movieName)) {
-		completed = _vm->_mpgPlayer->play(movieName);
-	} else {
+	if (_vm->_mpgPlayer) {
+		completed = _vm->_mpgPlayer->play(movieName, 0);
+	}
+	if (!completed) {
 		completed = _vm->_pmvPlayer->play(movieName);
 	}
 	CursorMan.showMouse(true);
@@ -1173,36 +1175,19 @@ int16 ScriptFunctions::sfIsSlowSystem(int16 argc, int16 *argv) {
 	return _vm->_introMusicDigital ? 0 : 1;
 }
 
-int16 ScriptFunctions::sfMovieCall(int16 argc, int16 *argv) {
+int16 ScriptFunctions::sfMovieCall(int16 argc, int16* argv) {
 	// Plays a movie, but also calls a script function on every frame.
 	// The script function returns a uint16 which indicates
 	//  whether to keep playing the movie, or abort early.
 	const char *filename = _vm->_dat->getObjectString(argv[1]);
+	debug(1, "sfMovieCall: filename='%s', callback=%04X", filename ? filename : "(null)", argv[0]);
 
-	if (_vm->_mpgPlayer->hasFile(filename)) {
-		if (_vm->_mpgPlayer->load(filename)) {
-			ScriptInterpreter si(_vm);
-			int16 playing = true;
-
-			while (!_vm->shouldQuit() && _vm->_mpgPlayer->isPlaying() && playing) {
-				int16 frameNumber = (int16)_vm->_mpgPlayer->getFrameNumber();
-				playing = si.runScript(argv[0], 1, &frameNumber);
-				debug(3, "Call script return code: %04X (%d)", playing, playing);
-
-				if (playing) {
-					if (!_vm->_mpgPlayer->decodeFrame())
-						break;
-
-					_vm->_mpgPlayer->waitForNextFrame();
-					_vm->_system->updateScreen();
-					_vm->_mpgPlayer->incrementFrameNumber();
-				}
-			}
-
-			_vm->_mpgPlayer->close();
+	if (_vm->_mpgPlayer) {
+		CursorMan.showMouse(false);
+		bool res = _vm->_mpgPlayer->play(filename, argv[0]);
+		CursorMan.showMouse(true);
+		if (res)
 			return true;
-		}
-		return false;
 	}
 
 	if (_vm->_pmvPlayer->load(filename)) {

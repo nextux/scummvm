@@ -22,16 +22,15 @@
 #ifndef MADE_MPGPLAYER_H
 #define MADE_MPGPLAYER_H
 
-#include "audio/mixer.h"
-#include "common/path.h"
 #include "common/scummsys.h"
+#include "common/path.h"
 
-namespace Graphics {
-struct Surface;
+namespace Audio {
+class Mixer;
 }
 
-namespace Video {
-class MPEGPSDecoder;
+namespace Common {
+class SeekableReadStream;
 }
 
 namespace Made {
@@ -40,8 +39,8 @@ class MadeEngine;
 
 enum MpgStreamType {
 	kMpgStreamUnknown = 0,
-	kMpgStreamStandard = 1,  // Standard ISO/IEC 11172-2 MPEG-1 (Macintosh MPEG release)
-	kMpgStreamReelMagic = 2  // Future: DOS ReelMagic MPEG variant
+	kMpgStreamSystemOrVideo, // Standard MPEG-1 PS (0x000001BA) or Elementary Video (0x000001B3)
+	kMpgStreamReelMagic      // Future hook for DOS ReelMagic MPEG streams
 };
 
 class MpgPlayer {
@@ -49,38 +48,14 @@ public:
 	MpgPlayer(MadeEngine *vm, Audio::Mixer *mixer);
 	~MpgPlayer();
 
-	bool hasFile(const char *filename) const;
+	bool play(const char *filename, int16 callbackScriptObj = 0);
 
-	bool load(const char *filename);
-	bool decodeFrame();
-	void waitForNextFrame();
-	void close();
-
-	bool play(const char *filename);
-	bool isPlaying() const;
-
-	uint32 getFrameNumber() const { return _frameNumber; }
-	void incrementFrameNumber() { _frameNumber++; }
-	uint16 getFrameDelay() const { return _frameDelay; }
-
-protected:
+private:
 	MadeEngine *_vm;
 	Audio::Mixer *_mixer;
 
-	Video::MPEGPSDecoder *_mpegDecoder;
-	Graphics::Surface *_scaledSurface;
-	MpgStreamType _streamType;
-	bool _paletteSaved;
-	byte _savedPalette[768];
-
-	uint32 _frameNumber;
-	uint16 _frameDelay;
-	uint16 _width;
-	uint16 _height;
-
-	bool resolveMpgPath(const char *filename, Common::Path &outPath) const;
-	MpgStreamType inspectHeader(const Common::Path &path, uint16 &width, uint16 &height, uint16 &frameDelay) const;
-	bool handleEvents();
+	Common::Path resolveMpgPath(const char *filename) const;
+	MpgStreamType inspectHeader(Common::SeekableReadStream &stream) const;
 };
 
 } // End of namespace Made

@@ -242,46 +242,39 @@ bool MpgPlayer::decodeFrame() {
 	uint16 screenW = _vm->_screen->getWidth();
 	uint16 screenH = _vm->_screen->getHeight();
 
-	// Scale 2x when a 320x240 / 320x200 MPEG is played on the 640x480 Macintosh screen
-	if (blitSurf->w * 2 <= screenW && blitSurf->h * 2 <= screenH &&
+	// Scale MPEG frame (e.g. 352x240 SIF) to fill the screen resolution (640x480 on Mac)
+	if ((blitSurf->w != screenW || blitSurf->h != screenH) &&
 		(screenFormat.bytesPerPixel == 2 || screenFormat.bytesPerPixel == 4)) {
-		uint16 scaledW = blitSurf->w * 2;
-		uint16 scaledH = blitSurf->h * 2;
 
-		if (!_scaledSurface || _scaledSurface->w != scaledW || _scaledSurface->h != scaledH ||
+		if (!_scaledSurface || _scaledSurface->w != screenW || _scaledSurface->h != screenH ||
 			_scaledSurface->format != screenFormat) {
 			if (_scaledSurface) {
 				_scaledSurface->free();
 				delete _scaledSurface;
 			}
 			_scaledSurface = new Graphics::Surface();
-			_scaledSurface->create(scaledW, scaledH, screenFormat);
+			_scaledSurface->create(screenW, screenH, screenFormat);
 		}
 
+		uint16 srcW = blitSurf->w;
+		uint16 srcH = blitSurf->h;
+
 		if (screenFormat.bytesPerPixel == 2) {
-			for (int16 y = 0; y < blitSurf->h; ++y) {
-				const uint16 *srcRow = (const uint16 *)blitSurf->getBasePtr(0, y);
-				uint16 *dstRow0 = (uint16 *)_scaledSurface->getBasePtr(0, y * 2);
-				uint16 *dstRow1 = (uint16 *)_scaledSurface->getBasePtr(0, y * 2 + 1);
-				for (int16 x = 0; x < blitSurf->w; ++x) {
-					uint16 px = srcRow[x];
-					dstRow0[x * 2] = px;
-					dstRow0[x * 2 + 1] = px;
-					dstRow1[x * 2] = px;
-					dstRow1[x * 2 + 1] = px;
+			for (uint16 y = 0; y < screenH; ++y) {
+				uint16 srcY = (uint32)(y * srcH) / screenH;
+				const uint16 *srcRow = (const uint16 *)blitSurf->getBasePtr(0, srcY);
+				uint16 *dstRow = (uint16 *)_scaledSurface->getBasePtr(0, y);
+				for (uint16 x = 0; x < screenW; ++x) {
+					dstRow[x] = srcRow[(uint32)(x * srcW) / screenW];
 				}
 			}
 		} else if (screenFormat.bytesPerPixel == 4) {
-			for (int16 y = 0; y < blitSurf->h; ++y) {
-				const uint32 *srcRow = (const uint32 *)blitSurf->getBasePtr(0, y);
-				uint32 *dstRow0 = (uint32 *)_scaledSurface->getBasePtr(0, y * 2);
-				uint32 *dstRow1 = (uint32 *)_scaledSurface->getBasePtr(0, y * 2 + 1);
-				for (int16 x = 0; x < blitSurf->w; ++x) {
-					uint32 px = srcRow[x];
-					dstRow0[x * 2] = px;
-					dstRow0[x * 2 + 1] = px;
-					dstRow1[x * 2] = px;
-					dstRow1[x * 2 + 1] = px;
+			for (uint16 y = 0; y < screenH; ++y) {
+				uint16 srcY = (uint32)(y * srcH) / screenH;
+				const uint32 *srcRow = (const uint32 *)blitSurf->getBasePtr(0, srcY);
+				uint32 *dstRow = (uint32 *)_scaledSurface->getBasePtr(0, y);
+				for (uint16 x = 0; x < screenW; ++x) {
+					dstRow[x] = srcRow[(uint32)(x * srcW) / screenW];
 				}
 			}
 		}

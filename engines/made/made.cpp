@@ -330,12 +330,20 @@ void MadeEngine::handleEvents() {
 			break;
 
 		case Common::EVENT_RBUTTONDOWN:
-			_eventNum = 4;
+			if (getPlatform() == Common::kPlatformMacintosh) {
+				_eventNum = 5;
+				_eventKey = 32; // Spacebar triggers secondary click / inventory on Mac
+			} else {
+				_eventNum = 4;
+			}
 			break;
 
 		case Common::EVENT_RBUTTONUP:
-			_eventNum = 3;
+			if (getPlatform() != Common::kPlatformMacintosh) {
+				_eventNum = 3;
+			}
 			break;
+			
 		case Common::EVENT_KEYDOWN:
 			// Handle any special keys here
 			// Supported keys taken from https://web.archive.org/web/20141114142447/http://www.allgame.com/game.php?id=13542&tab=controls

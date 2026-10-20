@@ -52,7 +52,7 @@ public:
 	virtual uint16 getCount() const = 0;
 	virtual byte getKeyCount() const = 0;
 	virtual byte getValueCount() const = 0;
-	virtual const byte *getData() const = 0;
+	virtual byte *getData() const = 0;
 
 	bool isByteArray() const;
 	bool isWordArray() const;
@@ -87,7 +87,7 @@ public:
 	uint16 getCount() const override;
 	byte getKeyCount() const override;
 	byte getValueCount() const override;
-	const byte *getData() const override;
+	byte *getData() const override;
 
 protected:
 	uint16 calcSize(const byte *source) const;
@@ -109,7 +109,7 @@ public:
 	uint16 getCount() const override;
 	byte getKeyCount() const override;
 	byte getValueCount() const override;
-	const byte *getData() const override;
+	byte *getData() const override;
 
 protected:
 	virtual uint16 calcSize(const byte *source) const;

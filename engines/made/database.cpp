@@ -192,7 +192,7 @@ byte ObjectV1::getValueCount() const {
 	return _objData[3];
 }
 
-const byte *ObjectV1::getData() const {
+byte *ObjectV1::getData() const {
 	return _objData + 4;
 }
 
@@ -275,7 +275,7 @@ byte ObjectV3::getValueCount() const {
 	return _objData[4];
 }
 
-const byte *ObjectV3::getData() const {
+byte *ObjectV3::getData() const {
 	return _objData + 6;
 }
 

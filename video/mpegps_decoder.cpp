@@ -171,6 +171,14 @@ MPEGPSDecoder::MPEGStream *MPEGPSDecoder::getStream(uint32 startCode, Common::Se
 }
 
 void MPEGPSDecoder::readNextPacket() {
+	for (TrackListIterator it = getTrackListBegin(); it != getTrackListEnd(); it++) {
+		if ((*it)->getTrackType() == Track::kTrackTypeVideo) {
+			MPEGVideoTrack *videoTrack = (MPEGVideoTrack *)*it;
+			if (videoTrack->hasBufferedFrames() && videoTrack->decodeBufferedFrame())
+				return;
+		}
+	}
+
 	for (;;) {
 		int32 startCode;
 		uint32 pts, dts;
@@ -178,9 +186,14 @@ void MPEGPSDecoder::readNextPacket() {
 
 		if (!packet) {
 			// End of stream
-			for (TrackListIterator it = getTrackListBegin(); it != getTrackListEnd(); it++)
-				if ((*it)->getTrackType() == Track::kTrackTypeVideo)
-					((MPEGVideoTrack *)*it)->setEndOfTrack();
+			for (TrackListIterator it = getTrackListBegin(); it != getTrackListEnd(); it++) {
+				if ((*it)->getTrackType() == Track::kTrackTypeVideo) {
+					MPEGVideoTrack *videoTrack = (MPEGVideoTrack *)*it;
+					if (!videoTrack->reachedSequenceEnd() && videoTrack->decodeBufferedFrame())
+						return;
+					videoTrack->setEndOfTrack();
+				}
+			}
 			return;
 		}
 
@@ -641,13 +654,13 @@ MPEGPSDecoder::MPEGVideoTrack::MPEGVideoTrack(Common::SeekableReadStream *firstP
 	_surface = 0;
 	_endOfTrack = false;
 	_curFrame = -1;
-	_framePts = 0xFFFFFFFF;
 	_nextFrameStartTime = Audio::Timestamp(0, 27000000); // 27 MHz timer
 
 	findDimensions(firstPacket);
 
 #ifdef USE_MPEG2
 	_mpegDecoder = new Image::MPEGDecoder();
+	_mpegDecoder->setStopAtFirstFrame(true);
 #endif
 }
 
@@ -692,9 +705,8 @@ bool MPEGPSDecoder::MPEGVideoTrack::sendPacket(Common::SeekableReadStream *packe
 		_surface->create(_width, _height, _pixelFormat);
 	}
 
-	if (pts != 0xFFFFFFFF) {
-		_framePts = pts;
-	}
+	if (pts != 0xFFFFFFFF)
+		_ptsQueue.push(pts);
 
 	uint32 framePeriod;
 	bool foundFrame = _mpegDecoder->decodePacket(*packet, framePeriod, _surface);
@@ -702,17 +714,11 @@ bool MPEGPSDecoder::MPEGVideoTrack::sendPacket(Common::SeekableReadStream *packe
 	if (foundFrame) {
 		_curFrame++;
 
-		// If there has been a timestamp since the previous frame, use that for
-		// syncing. Usually it will be the timestamp from the current packet,
-		// but it might not be.
-
-		if (_framePts != 0xFFFFFFFF) {
-			_nextFrameStartTime = Audio::Timestamp(_framePts / 90, 27000000);
+		if (!_ptsQueue.empty()) {
+			_nextFrameStartTime = Audio::Timestamp(_ptsQueue.pop() / 90, 27000000);
 		} else {
 			_nextFrameStartTime = _nextFrameStartTime.addFrames(framePeriod);
 		}
-
-		_framePts = 0xFFFFFFFF;
 	}
 #endif
 
@@ -722,6 +728,36 @@ bool MPEGPSDecoder::MPEGVideoTrack::sendPacket(Common::SeekableReadStream *packe
 	return foundFrame;
 #else
 	return true;
+#endif
+}
+
+bool MPEGPSDecoder::MPEGVideoTrack::decodeBufferedFrame() {
+#ifdef USE_MPEG2
+	if (!_surface) {
+		_surface = new Graphics::Surface();
+		_surface->create(_width, _height, _pixelFormat);
+	}
+
+	uint32 framePeriod = 0;
+	bool foundFrame = _mpegDecoder->decodePendingFrame(framePeriod, _surface);
+	if (foundFrame) {
+		_curFrame++;
+		if (!_ptsQueue.empty())
+			_nextFrameStartTime = Audio::Timestamp(_ptsQueue.pop() / 90, 27000000);
+		else
+			_nextFrameStartTime = _nextFrameStartTime.addFrames(framePeriod);
+	}
+	return foundFrame;
+#else
+	return false;
+#endif
+}
+
+bool MPEGPSDecoder::MPEGVideoTrack::reachedSequenceEnd() const {
+#ifdef USE_MPEG2
+	return _mpegDecoder->reachedSequenceEnd();
+#else
+	return false;
 #endif
 }
 

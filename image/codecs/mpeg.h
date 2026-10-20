@@ -24,6 +24,7 @@
 
 #include "image/codecs/codec.h"
 #include "graphics/pixelformat.h"
+#include "common/array.h" 
 
 typedef struct mpeg2dec_s mpeg2dec_t;
 typedef struct mpeg2_info_s mpeg2_info_t;
@@ -61,6 +62,10 @@ public:
 	// MPEGPSDecoder call
 	bool decodePacket(Common::SeekableReadStream &packet, uint32 &framePeriod, Graphics::Surface *dst = 0);
 
+	bool decodePendingFrame(uint32 &framePeriod, Graphics::Surface *dst = 0);
+	bool reachedSequenceEnd() const { return _reachedSequenceEnd; }
+	void setStopAtFirstFrame(bool stop) { _stopAtFirstFrame = stop; }
+
 private:
 	Graphics::PixelFormat _pixelFormat;
 	Graphics::Surface *_surface;
@@ -72,6 +77,15 @@ private:
 	byte _buffer[BUFFER_SIZE];
 	mpeg2dec_t *_mpegDecoder;
 	const mpeg2_info_t *_mpegInfo;
+
+	bool decodeFirstFrame(Common::SeekableReadStream &packet, uint32 &framePeriod, Graphics::Surface *dst);
+	bool decodeQueuedFrame(uint32 &framePeriod, Graphics::Surface *dst);
+	void convertFrame(Graphics::Surface *dst);
+
+	bool _stopAtFirstFrame;
+	bool _reachedSequenceEnd;
+	Common::Array<byte> _pendingData;
+	uint32 _pendingPos;
 };
 
 } // End of namespace Image

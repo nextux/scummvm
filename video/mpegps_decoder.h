@@ -143,12 +143,15 @@ private:
 		bool sendPacket(Common::SeekableReadStream *packet, uint32 pts, uint32 dts) override;
 		StreamType getStreamType() const override { return kStreamTypeVideo; }
 
-		void setEndOfTrack() { _endOfTrack = true; }
+	void setEndOfTrack() { _endOfTrack = true; }
+		bool hasBufferedFrames() const { return !_ptsQueue.empty(); }
+		bool decodeBufferedFrame();
+		bool reachedSequenceEnd() const;
 
 	private:
 		bool _endOfTrack;
 		int _curFrame;
-		uint32 _framePts;
+		Common::Queue<uint32> _ptsQueue;
 		Audio::Timestamp _nextFrameStartTime;
 		Graphics::Surface *_surface;
 

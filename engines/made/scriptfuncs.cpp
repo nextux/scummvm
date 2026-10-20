@@ -25,6 +25,7 @@
 #include "made/music.h"
 #include "made/database.h"
 #include "made/pmvplayer.h"
+#include "made/mpgplayer.h"
 #include "made/script.h"
 
 #include "audio/sine.h"
@@ -863,7 +864,12 @@ int16 ScriptFunctions::sfGetTextWidth(int16 argc, int16 *argv) {
 int16 ScriptFunctions::sfPlayMovie(int16 argc, int16 *argv) {
 	const char *movieName = _vm->_dat->getObjectString(argv[1]);
 	CursorMan.showMouse(false);
-	bool completed = _vm->_pmvPlayer->play(movieName);
+	bool completed = false;
+	if (_vm->_mpgPlayer->hasFile(movieName)) {
+		completed = _vm->_mpgPlayer->play(movieName);
+	} else {
+		completed = _vm->_pmvPlayer->play(movieName);
+	}
 	CursorMan.showMouse(true);
 	// Return true/false according to if the movie was canceled or not
 	return completed ? -1 : 0;
@@ -1167,11 +1173,37 @@ int16 ScriptFunctions::sfIsSlowSystem(int16 argc, int16 *argv) {
 	return _vm->_introMusicDigital ? 0 : 1;
 }
 
-int16 ScriptFunctions::sfMovieCall(int16 argc, int16* argv) {
+int16 ScriptFunctions::sfMovieCall(int16 argc, int16 *argv) {
 	// Plays a movie, but also calls a script function on every frame.
 	// The script function returns a uint16 which indicates
 	//  whether to keep playing the movie, or abort early.
 	const char *filename = _vm->_dat->getObjectString(argv[1]);
+
+	if (_vm->_mpgPlayer->hasFile(filename)) {
+		if (_vm->_mpgPlayer->load(filename)) {
+			ScriptInterpreter si(_vm);
+			int16 playing = true;
+
+			while (!_vm->shouldQuit() && _vm->_mpgPlayer->isPlaying() && playing) {
+				int16 frameNumber = (int16)_vm->_mpgPlayer->getFrameNumber();
+				playing = si.runScript(argv[0], 1, &frameNumber);
+				debug(3, "Call script return code: %04X (%d)", playing, playing);
+
+				if (playing) {
+					if (!_vm->_mpgPlayer->decodeFrame())
+						break;
+
+					_vm->_mpgPlayer->waitForNextFrame();
+					_vm->_system->updateScreen();
+					_vm->_mpgPlayer->incrementFrameNumber();
+				}
+			}
+
+			_vm->_mpgPlayer->close();
+			return true;
+		}
+		return false;
+	}
 
 	if (_vm->_pmvPlayer->load(filename)) {
 		// set up a script interpreter for calling the sub

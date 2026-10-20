@@ -473,7 +473,7 @@ void GameDatabaseV1::load(Common::SeekableReadStream &sourceS) {
 
 	textSize = objectsOffs - textOffs;
 
-	debug(0, "textOffs = %08X; textSize = %08X; objectCount = %d; varObjectCount = %d; gameStateSize = %d; objectsOffs = %08X; _mainCodeObjectIndex = %04X\n", textOffs, textSize, objectCount, _gameStateSize, objectsOffs, _mainCodeObjectIndex);
+	debug(0, "textOffs = %08X; textSize = %08X; objectCount = %d; gameStateSize = %d; objectsOffs = %08X; _mainCodeObjectIndex = %04X\n", textOffs, textSize, objectCount, _gameStateSize, objectsOffs, _mainCodeObjectIndex);
 
 	_gameState = new byte[_gameStateSize + 2]();
 	setVar(1, objectCount);

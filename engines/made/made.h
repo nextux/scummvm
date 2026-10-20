@@ -47,6 +47,7 @@ const uint32 kTimerResolution = 40;
 
 class ResourceReader;
 class PmvPlayer;
+class MpgPlayer;
 class Screen;
 class ScriptInterpreter;
 class GameDatabase;
@@ -90,6 +91,7 @@ public:
 
 public:
 	PmvPlayer *_pmvPlayer;
+	MpgPlayer *_mpgPlayer;
 	ResourceReader *_res;
 	Screen *_screen;
 	GameDatabase *_dat;

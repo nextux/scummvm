@@ -83,7 +83,7 @@ static uint rleDecompress(byte *source, const byte *end, Common::Array<byte> &de
 	}
 
 	if (source > end)
-		warning("graphics::rleDecompress(): input stream over-read by %d bytes!", source - end);
+		warning("graphics::rleDecompress(): input stream over-read by %d bytes!", (int)(source - end));
 
 	return dest.size();
 }

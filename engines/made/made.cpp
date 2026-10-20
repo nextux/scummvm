@@ -22,6 +22,7 @@
 #include "made/made.h"
 #include "made/console.h"
 #include "made/pmvplayer.h"
+#include "made/mpgplayer.h"
 #include "made/resource.h"
 #include "made/screen.h"
 #include "made/database.h"
@@ -66,6 +67,7 @@ MadeEngine::MadeEngine(OSystem *syst, const MadeGameDescription *gameDesc) : Eng
 	_system->getAudioCDManager()->open();
 
 	_pmvPlayer = new PmvPlayer(this, _mixer);
+	_mpgPlayer = new MpgPlayer(this, _mixer);
 	_res = new ResourceReader();
 	_screen = new Screen(this);
 
@@ -131,6 +133,7 @@ MadeEngine::~MadeEngine() {
 
 	delete _rnd;
 	delete _pmvPlayer;
+	delete _mpgPlayer;
 	delete _res;
 	delete _screen;
 	delete _dat;

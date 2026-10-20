@@ -6,6 +6,7 @@ MODULE_OBJS := \
 	graphics.o \
 	made.o \
 	metaengine.o \
+	mpgplayer.o \
 	music.o \
 	pmvplayer.o \
 	resource.o \

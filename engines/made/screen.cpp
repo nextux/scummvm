@@ -249,7 +249,9 @@ void Screen::drawSurface(Graphics::Surface *sourceSurface, int x, int y, int16 f
 }
 
 void Screen::setRGBPalette(byte *palRGB, int start, int count) {
-	_vm->_system->getPaletteManager()->setPalette(palRGB, start, count);
+	if (_vm->_system->getScreenFormat().isCLUT8()) {
+		_vm->_system->getPaletteManager()->setPalette(palRGB, start, count);
+	}
 }
 
 uint16 Screen::updateChannel(uint16 channelIndex) {
@@ -388,7 +390,9 @@ void Screen::updateSprites() {
 	drawSpriteChannels(_backgroundScreenDrawCtx, 3, 0);
 	drawSpriteChannels(_workScreenDrawCtx, 1, 2);
 
-	_vm->_system->copyRectToScreen(_workScreen->getPixels(), _workScreen->pitch, 0, 0, _workScreen->w, _workScreen->h);
+	if (_vm->_system->getScreenFormat().isCLUT8()) {
+		_vm->_system->copyRectToScreen(_workScreen->getPixels(), _workScreen->pitch, 0, 0, _workScreen->w, _workScreen->h);
+	}
 	_vm->_screen->updateScreenAndWait(10);
 }
 
@@ -763,7 +767,9 @@ void Screen::show() {
 	memcpy(_workScreen->getPixels(), _backgroundScreen->getPixels(), _screenWidth * _screenHeight);
 	drawSpriteChannels(_workScreenDrawCtx, 1, 2);
 
-	_fx->run(_visualEffectNum, _workScreen, _palette, _newPalette, _paletteColorCount);
+	if (_vm->_system->getScreenFormat().isCLUT8()) {
+		_fx->run(_visualEffectNum, _workScreen, _palette, _newPalette, _paletteColorCount);
+	}
 	_visualEffectNum = 0;
 
 	if (!_paletteInitialized) {
@@ -802,7 +808,7 @@ void Screen::printChar(uint c, int16 x, int16 y, byte color) {
 	byte p;
 	byte *dest = (byte *)_fontDrawCtx.destSurface->getBasePtr(x, y);
 
-	for (uint yc = 0; yc < height && y + yc < _fontDrawCtx.destSurface->h; yc++) {
+	for (uint yc = 0; yc < height && y + (int16)yc < _fontDrawCtx.destSurface->h; yc++) {
 		p = charData[yc];
 		for (uint xc = 0; xc < width; xc++) {
 			if (p & 0x80)

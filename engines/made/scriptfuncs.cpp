@@ -212,7 +212,7 @@ void ScriptFunctions::setupExternalsTable() {
 
 	if (_vm->getGameID() == GID_RTZ && _vm->getPlatform() == Common::kPlatformMacintosh) {
 		External(sfLaunchedGame);
-		External(sfUnknown); // "exFACEICON", 3 args, unknown use (and never called)
+		External(sfFaceIcon);
 	}
 }
 #undef External
@@ -863,15 +863,14 @@ int16 ScriptFunctions::sfGetTextWidth(int16 argc, int16 *argv) {
 
 int16 ScriptFunctions::sfPlayMovie(int16 argc, int16 *argv) {
 	const char *movieName = _vm->_dat->getObjectString(argv[1]);
-	debug(1, "sfPlayMovie: movieName='%s', argv[0]=%d", movieName ? movieName : "(null)", argv[0]);
-	CursorMan.showMouse(false);
-	bool completed = false;
 	if (_vm->_mpgPlayer) {
-		completed = _vm->_mpgPlayer->play(movieName, 0);
+		CursorMan.showMouse(false);
+		bool completed = _vm->_mpgPlayer->play(movieName);
+		CursorMan.showMouse(true);
+		return completed ? -1 : 0;
 	}
-	if (!completed) {
-		completed = _vm->_pmvPlayer->play(movieName);
-	}
+	CursorMan.showMouse(false);
+	bool completed = _vm->_pmvPlayer->play(movieName);
 	CursorMan.showMouse(true);
 	// Return true/false according to if the movie was canceled or not
 	return completed ? -1 : 0;
@@ -1180,16 +1179,13 @@ int16 ScriptFunctions::sfMovieCall(int16 argc, int16* argv) {
 	// The script function returns a uint16 which indicates
 	//  whether to keep playing the movie, or abort early.
 	const char *filename = _vm->_dat->getObjectString(argv[1]);
-	debug(1, "sfMovieCall: filename='%s', callback=%04X", filename ? filename : "(null)", argv[0]);
 
 	if (_vm->_mpgPlayer) {
-		CursorMan.showMouse(false);
 		bool res = _vm->_mpgPlayer->play(filename, argv[0]);
-		CursorMan.showMouse(true);
-		if (res)
-			return true;
+		return res ? 1 : 0;
 	}
 
+	// ... existing _pmvPlayer code ...
 	if (_vm->_pmvPlayer->load(filename)) {
 		// set up a script interpreter for calling the sub
 		ScriptInterpreter si(_vm);
@@ -1274,7 +1270,13 @@ int16 ScriptFunctions::sfLaunchedGame(int16 argc, int16 *argv) {
 	return 0;
 }
 
-// ///////////////////////////////////////
+int16 ScriptFunctions::sfFaceIcon(int16 argc, int16 *argv) {
+	if (argc < 3)
+		return 0;
+	if (_vm->_mpgPlayer)
+		_vm->_mpgPlayer->addFaceIcon(argv[2], argv[1], argv[0]);
+	return 0;
+}
 
 int16 ScriptFunctions::sfUnknown(int16 argc, int16 *argv) {
 	// This is a placeholder for an unknown function.

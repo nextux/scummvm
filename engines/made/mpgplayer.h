@@ -22,8 +22,9 @@
 #ifndef MADE_MPGPLAYER_H
 #define MADE_MPGPLAYER_H
 
-#include "common/scummsys.h"
+#include "common/array.h"
 #include "common/path.h"
+#include "common/scummsys.h"
 
 namespace Audio {
 class Mixer;
@@ -31,6 +32,10 @@ class Mixer;
 
 namespace Common {
 class SeekableReadStream;
+}
+
+namespace Graphics {
+struct Surface;
 }
 
 namespace Made {
@@ -50,12 +55,23 @@ public:
 
 	bool play(const char *filename, int16 callbackScriptObj = 0);
 
+	void addFaceIcon(uint16 flexIndex, int16 x, int16 y);
+	void clearFaceIcons();
+
 private:
+	struct FaceIcon {
+		uint16 flexIndex;
+		int16 x;
+		int16 y;
+	};
+
 	MadeEngine *_vm;
 	Audio::Mixer *_mixer;
+	Common::Array<FaceIcon> _faceIcons;
 
 	Common::Path resolveMpgPath(const char *filename) const;
 	MpgStreamType inspectHeader(Common::SeekableReadStream &stream) const;
+	void drawFaceIcons(Graphics::Surface &target, const byte *defaultPalette) const;
 };
 
 } // End of namespace Made

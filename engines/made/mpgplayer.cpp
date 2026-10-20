@@ -21,6 +21,7 @@
 
 #include "made/mpgplayer.h"
 #include "made/made.h"
+#include "made/resource.h"
 #include "made/screen.h"
 #include "made/script.h"
 
@@ -35,6 +36,7 @@
 
 #include "audio/mixer.h"
 #include "engines/util.h"
+#include "graphics/cursorman.h"
 #include "graphics/paletteman.h"
 #include "graphics/pixelformat.h"
 #include "graphics/surface.h"
@@ -46,6 +48,60 @@ MpgPlayer::MpgPlayer(MadeEngine *vm, Audio::Mixer *mixer) : _vm(vm), _mixer(mixe
 }
 
 MpgPlayer::~MpgPlayer() {
+}
+
+void MpgPlayer::addFaceIcon(uint16 flexIndex, int16 x, int16 y) {
+	FaceIcon icon = { flexIndex, x, y };
+	_faceIcons.push_back(icon);
+}
+
+void MpgPlayer::clearFaceIcons() {
+	_faceIcons.clear();
+}
+
+void MpgPlayer::drawFaceIcons(Graphics::Surface &target, const byte *defaultPalette) const {
+	if (_faceIcons.empty())
+		return;
+
+	for (uint i = 0; i < _faceIcons.size(); ++i) {
+		PictureResource *flex = _vm->_res->getPicture(_faceIcons[i].flexIndex);
+		if (!flex)
+			continue;
+
+		Graphics::Surface *iconSurf = flex->getPicture();
+		const byte *pal = flex->hasPalette() ? flex->getPalette() : defaultPalette;
+		const int16 baseX = _faceIcons[i].x;
+		const int16 baseY = _faceIcons[i].y;
+
+		for (int iy = 0; iy < iconSurf->h; ++iy) {
+			int dy = baseY + iy;
+			if (dy < 0 || dy >= target.h)
+				continue;
+
+			const byte *srcRow = (const byte *)iconSurf->getBasePtr(0, iy);
+			byte *dstRow = (byte *)target.getBasePtr(0, dy);
+
+			for (int ix = 0; ix < iconSurf->w; ++ix) {
+				int dx = baseX + ix;
+				if (dx < 0 || dx >= target.w)
+					continue;
+
+				byte colorIdx = srcRow[ix];
+				if (colorIdx != 0) { // Palette index 0 is transparent
+					uint32 color = target.format.RGBToColor(
+						pal[colorIdx * 3 + 0],
+						pal[colorIdx * 3 + 1],
+						pal[colorIdx * 3 + 2]);
+					if (target.format.bytesPerPixel == 2)
+						*((uint16 *)dstRow + dx) = (uint16)color;
+					else if (target.format.bytesPerPixel == 4)
+						*((uint32 *)dstRow + dx) = color;
+				}
+			}
+		}
+
+		_vm->_res->freeResource(flex);
+	}
 }
 
 Common::Path MpgPlayer::resolveMpgPath(const char *filename) const {
@@ -122,6 +178,7 @@ bool MpgPlayer::play(const char *filename, int16 callbackScriptObj) {
 	if (!probeFile.open(mpgPath)) {
 		warning("MpgPlayer::play(): Failed to open MPEG file '%s' (from '%s')",
 				mpgPath.toString().c_str(), filename);
+		clearFaceIcons();
 		return false;
 	}
 
@@ -130,22 +187,29 @@ bool MpgPlayer::play(const char *filename, int16 callbackScriptObj) {
 
 	if (streamType == kMpgStreamUnknown) {
 		warning("MpgPlayer::play(): Unrecognized MPEG header in '%s'", mpgPath.toString().c_str());
+		clearFaceIcons();
 		return false;
 	}
 
 	if (streamType == kMpgStreamReelMagic) {
 		warning("MpgPlayer::play(): ReelMagic MPEG format in '%s' is not yet supported", mpgPath.toString().c_str());
+		clearFaceIcons();
 		return false;
 	}
 
 	Common::String baseCheck(filename);
-	if (baseCheck.equalsIgnoreCase("FWIZ01X1.PMV") || baseCheck.equalsIgnoreCase("FWIZ01X1.MPG")) {
+	if (baseCheck.equalsIgnoreCase("FWIZ01X1.PMV") ||
+		baseCheck.equalsIgnoreCase("FWIZ01X1.MPG") ||
+		baseCheck.equalsIgnoreCase("FWIZ01XX.MPG")) {
 		_vm->_openingCreditsOpen = false;
 	}
 
 	Video::MPEGPSDecoder decoder;
+	// If you apply the Part 2 MPEGPSDecoder patch below, uncomment the next line:
+	// decoder.setStopAtFirstFrame(true);
 	if (!decoder.loadFile(mpgPath)) {
 		warning("MpgPlayer::play(): Video::MPEGPSDecoder failed to load '%s'", mpgPath.toString().c_str());
+		clearFaceIcons();
 		return false;
 	}
 
@@ -169,6 +233,9 @@ bool MpgPlayer::play(const char *filename, int16 callbackScriptObj) {
 
 	initGraphics(screenW, screenH, &videoFormat);
 	Graphics::PixelFormat screenFormat = _vm->_system->getScreenFormat();
+
+	// Keep the 8-bit paletted mouse cursor visible while in true-color mode
+	CursorMan.replaceCursorPalette(savedPalette, 0, 256);
 
 	_vm->_system->fillScreen(0);
 	_vm->_system->updateScreen();
@@ -209,10 +276,18 @@ bool MpgPlayer::play(const char *filename, int16 callbackScriptObj) {
 
 				if (outFrame->w != screenW || outFrame->h != screenH) {
 					Graphics::Surface *scaled = outFrame->scale(screenW, screenH);
+					drawFaceIcons(*scaled, savedPalette);
 					_vm->_system->copyRectToScreen(scaled->getPixels(), scaled->pitch,
 												   0, 0, scaled->w, scaled->h);
 					scaled->free();
 					delete scaled;
+				} else if (!_faceIcons.empty()) {
+					Graphics::Surface composited;
+					composited.copyFrom(*outFrame);
+					drawFaceIcons(composited, savedPalette);
+					_vm->_system->copyRectToScreen(composited.getPixels(), composited.pitch,
+												   0, 0, composited.w, composited.h);
+					composited.free();
 				} else {
 					_vm->_system->copyRectToScreen(outFrame->getPixels(), outFrame->pitch,
 												   0, 0, outFrame->w, outFrame->h);
@@ -248,6 +323,7 @@ bool MpgPlayer::play(const char *filename, int16 callbackScriptObj) {
 	}
 
 	decoder.close();
+	clearFaceIcons();
 
 	// Restore 8-bit CLUT8 mode and palette for the MADE engine
 	Graphics::PixelFormat clut8 = Graphics::PixelFormat::createFormatCLUT8();

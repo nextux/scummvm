@@ -26,6 +26,10 @@
 #include "common/path.h"
 #include "common/scummsys.h"
 
+namespace Graphics {
+struct Surface;
+}
+
 namespace Video {
 class MPEGPSDecoder;
 }
@@ -64,6 +68,7 @@ protected:
 	Audio::Mixer *_mixer;
 
 	Video::MPEGPSDecoder *_mpegDecoder;
+	Graphics::Surface *_scaledSurface;
 	MpgStreamType _streamType;
 	bool _paletteSaved;
 	byte _savedPalette[768];

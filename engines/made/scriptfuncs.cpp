@@ -1283,6 +1283,7 @@ int16 ScriptFunctions::sfLaunchedGame(int16 argc, int16 *argv) {
 	//  this function (fired after title screen) will load game state,
 	// or do nothing if the game was launched without an arg.
 	int16 version = argv[0];
+	debug(4, "sfLaunchedGame: version = %d", version);
 
 	// But since we do not (yet) have launcher-managed savegames, we do nothing for now.
 	return 0;

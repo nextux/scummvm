@@ -42,7 +42,7 @@
 namespace Made {
 
 MpgPlayer::MpgPlayer(MadeEngine *vm, Audio::Mixer *mixer)
-	: _vm(vm), _mixer(mixer), _mpegDecoder(nullptr),
+	: _vm(vm), _mixer(mixer), _mpegDecoder(nullptr), _scaledSurface(nullptr),
 	  _streamType(kMpgStreamUnknown), _paletteSaved(false),
 	  _frameNumber(0), _frameDelay(33), _width(320), _height(240) {
 	memset(_savedPalette, 0, sizeof(_savedPalette));
@@ -241,6 +241,54 @@ bool MpgPlayer::decodeFrame() {
 
 	uint16 screenW = _vm->_screen->getWidth();
 	uint16 screenH = _vm->_screen->getHeight();
+
+	// Scale 2x when a 320x240 / 320x200 MPEG is played on the 640x480 Macintosh screen
+	if (blitSurf->w * 2 <= screenW && blitSurf->h * 2 <= screenH &&
+		(screenFormat.bytesPerPixel == 2 || screenFormat.bytesPerPixel == 4)) {
+		uint16 scaledW = blitSurf->w * 2;
+		uint16 scaledH = blitSurf->h * 2;
+
+		if (!_scaledSurface || _scaledSurface->w != scaledW || _scaledSurface->h != scaledH ||
+			_scaledSurface->format != screenFormat) {
+			if (_scaledSurface) {
+				_scaledSurface->free();
+				delete _scaledSurface;
+			}
+			_scaledSurface = new Graphics::Surface();
+			_scaledSurface->create(scaledW, scaledH, screenFormat);
+		}
+
+		if (screenFormat.bytesPerPixel == 2) {
+			for (int16 y = 0; y < blitSurf->h; ++y) {
+				const uint16 *srcRow = (const uint16 *)blitSurf->getBasePtr(0, y);
+				uint16 *dstRow0 = (uint16 *)_scaledSurface->getBasePtr(0, y * 2);
+				uint16 *dstRow1 = (uint16 *)_scaledSurface->getBasePtr(0, y * 2 + 1);
+				for (int16 x = 0; x < blitSurf->w; ++x) {
+					uint16 px = srcRow[x];
+					dstRow0[x * 2] = px;
+					dstRow0[x * 2 + 1] = px;
+					dstRow1[x * 2] = px;
+					dstRow1[x * 2 + 1] = px;
+				}
+			}
+		} else if (screenFormat.bytesPerPixel == 4) {
+			for (int16 y = 0; y < blitSurf->h; ++y) {
+				const uint32 *srcRow = (const uint32 *)blitSurf->getBasePtr(0, y);
+				uint32 *dstRow0 = (uint32 *)_scaledSurface->getBasePtr(0, y * 2);
+				uint32 *dstRow1 = (uint32 *)_scaledSurface->getBasePtr(0, y * 2 + 1);
+				for (int16 x = 0; x < blitSurf->w; ++x) {
+					uint32 px = srcRow[x];
+					dstRow0[x * 2] = px;
+					dstRow0[x * 2 + 1] = px;
+					dstRow1[x * 2] = px;
+					dstRow1[x * 2 + 1] = px;
+				}
+			}
+		}
+
+		blitSurf = _scaledSurface;
+	}
+
 	int16 dstX = MAX<int16>(0, (screenW - blitSurf->w) / 2);
 	int16 dstY = MAX<int16>(0, (screenH - blitSurf->h) / 2);
 	uint16 copyW = MIN<uint16>(blitSurf->w, screenW - dstX);
@@ -270,6 +318,12 @@ void MpgPlayer::close() {
 		_mpegDecoder->close();
 		delete _mpegDecoder;
 		_mpegDecoder = nullptr;
+	}
+
+	if (_scaledSurface) {
+		_scaledSurface->free();
+		delete _scaledSurface;
+		_scaledSurface = nullptr;
 	}
 
 	if (_paletteSaved) {

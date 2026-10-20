@@ -593,6 +593,26 @@ static const MadeGameDescription gameDescriptions[] = {
 	},
 
 	{
+		// Return to Zork - English CD Macintosh MPEG version 1.2 7/12/95
+		{
+			"rtz",
+			"V1.2, 7/12/95, CD",
+			{
+				{"rtz.dat", 0, "289f896ae8c3b5829104991b44825ebb", 602112},
+  				{"rtz.prj", 0, "b9d0f34207dc2b2f35b34c8c35b16fbf", 47547284},
+				AD_LISTEND
+			},
+			Common::EN_ANY,
+			Common::kPlatformMacintosh,
+			ADGF_CD,
+			GUIO1(GAMEOPTION_INTRO_MUSIC_DIGITAL)
+		},
+		GID_RTZ,
+		GF_CD,
+		3, 1,
+	},
+
+	{
 		// Return to Zork - Japanese DOS
 		// This is the RTZCD.DAT in the base directory of the FM-Towns CD
 		{

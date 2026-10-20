@@ -103,7 +103,7 @@ protected:
 	ScriptStack _stack;
 	int16 _entryStackPos, _localStackPos;
 	int16 _runningScriptObjectIndex;
-	byte *_codeBase, *_codeIp;
+	const byte *_codeBase, *_codeIp;
 	bool _running;
 
 	ScriptFunctions *_functions;

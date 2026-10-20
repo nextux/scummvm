@@ -1273,8 +1273,13 @@ int16 ScriptFunctions::sfLaunchedGame(int16 argc, int16 *argv) {
 int16 ScriptFunctions::sfFaceIcon(int16 argc, int16 *argv) {
 	if (argc < 3)
 		return 0;
+	int16 y = argv[0];
+	int16 x = argv[1];
+	int16 picId = argv[2];
 	if (_vm->_mpgPlayer)
-		_vm->_mpgPlayer->addFaceIcon(argv[2], argv[1], argv[0]);
+		_vm->_mpgPlayer->addFaceIcon(picId, x, y);
+	int16 screenX = (x >= 320) ? (x / 2) : x;
+	_vm->_screen->drawPic(picId, screenX, y, 0, 0);
 	return 0;
 }
 

@@ -249,7 +249,24 @@ void Screen::drawSurface(Graphics::Surface *sourceSurface, int x, int y, int16 f
 }
 
 void Screen::setRGBPalette(byte *palRGB, int start, int count) {
-	if (_vm->_system->getScreenFormat().isCLUT8()) {
+	if (_vm->getPlatform() == Common::kPlatformMacintosh) {
+		static byte macGammaLUT[256];
+		static bool lutInitialized = false;
+		if (!lutInitialized) {
+			for (int i = 0; i < 256; i++) {
+				// Classic Mac OS 1.8 -> sRGB 2.5 gamma curve (~0.70 exponent)
+				macGammaLUT[i] = (byte)(pow(i / 255.0, 0.70) * 255.0 + 0.5);
+			}
+			lutInitialized = true;
+		}
+
+		byte macPal[768];
+		int maxCount = CLIP(count, 0, 256 - start);
+		for (int i = 0; i < maxCount * 3; i++) {
+			macPal[i] = macGammaLUT[palRGB[i]];
+		}
+		_vm->_system->getPaletteManager()->setPalette(macPal, start, maxCount);
+	} else {
 		_vm->_system->getPaletteManager()->setPalette(palRGB, start, count);
 	}
 }

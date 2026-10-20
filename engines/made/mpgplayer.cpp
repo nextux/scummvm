@@ -20,6 +20,7 @@
  */
 
 #include "made/mpgplayer.h"
+#include "made/database.h"
 #include "made/made.h"
 #include "made/resource.h"
 #include "made/screen.h"
@@ -44,64 +45,56 @@
 
 namespace Made {
 
+static void drawCharToRGBSurface(Graphics::Surface *surf, FontResource *font, uint c, int16 x, int16 y, uint32 pixel, uint8 bytesPerPixel) {
+	if (!surf || !font)
+		return;
+
+	uint width = font->getCharWidth(c);
+	uint height = font->getHeight();
+	byte *charData = font->getChar(c);
+	if (!charData)
+		return;
+
+	for (uint yc = 0; yc < height; ++yc) {
+		int16 sy = y + (int16)yc;
+		if (sy < 0 || sy >= surf->h)
+			continue;
+		byte p = charData[yc];
+		for (uint xc = 0; xc < width; ++xc) {
+			int16 sx = x + (int16)xc;
+			if ((p & 0x80) && sx >= 0 && sx < surf->w) {
+				if (bytesPerPixel == 2)
+					*((uint16 *)surf->getBasePtr(sx, sy)) = (uint16)pixel;
+				else if (bytesPerPixel == 4)
+					*((uint32 *)surf->getBasePtr(sx, sy)) = pixel;
+			}
+			p <<= 1;
+		}
+	}
+}
+
 MpgPlayer::MpgPlayer(MadeEngine *vm, Audio::Mixer *mixer) : _vm(vm), _mixer(mixer) {
 }
 
 MpgPlayer::~MpgPlayer() {
 }
 
-void MpgPlayer::addFaceIcon(uint16 flexIndex, int16 x, int16 y) {
-	FaceIcon icon = { flexIndex, x, y };
+void MpgPlayer::addFaceIcon(int16 picId, int16 x, int16 y) {
+	for (uint i = 0; i < _faceIcons.size(); ++i) {
+		if (_faceIcons[i].x == x && _faceIcons[i].y == y) {
+			_faceIcons[i].picId = picId;
+			return;
+		}
+	}
+	FaceIconOverlay icon;
+	icon.picId = picId;
+	icon.x = x;
+	icon.y = y;
 	_faceIcons.push_back(icon);
 }
 
 void MpgPlayer::clearFaceIcons() {
 	_faceIcons.clear();
-}
-
-void MpgPlayer::drawFaceIcons(Graphics::Surface &target, const byte *defaultPalette) const {
-	if (_faceIcons.empty())
-		return;
-
-	for (uint i = 0; i < _faceIcons.size(); ++i) {
-		PictureResource *flex = _vm->_res->getPicture(_faceIcons[i].flexIndex);
-		if (!flex)
-			continue;
-
-		Graphics::Surface *iconSurf = flex->getPicture();
-		const byte *pal = flex->hasPalette() ? flex->getPalette() : defaultPalette;
-		const int16 baseX = _faceIcons[i].x;
-		const int16 baseY = _faceIcons[i].y;
-
-		for (int iy = 0; iy < iconSurf->h; ++iy) {
-			int dy = baseY + iy;
-			if (dy < 0 || dy >= target.h)
-				continue;
-
-			const byte *srcRow = (const byte *)iconSurf->getBasePtr(0, iy);
-			byte *dstRow = (byte *)target.getBasePtr(0, dy);
-
-			for (int ix = 0; ix < iconSurf->w; ++ix) {
-				int dx = baseX + ix;
-				if (dx < 0 || dx >= target.w)
-					continue;
-
-				byte colorIdx = srcRow[ix];
-				if (colorIdx != 0) { // Palette index 0 is transparent
-					uint32 color = target.format.RGBToColor(
-						pal[colorIdx * 3 + 0],
-						pal[colorIdx * 3 + 1],
-						pal[colorIdx * 3 + 2]);
-					if (target.format.bytesPerPixel == 2)
-						*((uint16 *)dstRow + dx) = (uint16)color;
-					else if (target.format.bytesPerPixel == 4)
-						*((uint32 *)dstRow + dx) = color;
-				}
-			}
-		}
-
-		_vm->_res->freeResource(flex);
-	}
 }
 
 Common::Path MpgPlayer::resolveMpgPath(const char *filename) const {
@@ -198,15 +191,11 @@ bool MpgPlayer::play(const char *filename, int16 callbackScriptObj) {
 	}
 
 	Common::String baseCheck(filename);
-	if (baseCheck.equalsIgnoreCase("FWIZ01X1.PMV") ||
-		baseCheck.equalsIgnoreCase("FWIZ01X1.MPG") ||
-		baseCheck.equalsIgnoreCase("FWIZ01XX.MPG")) {
+	if (baseCheck.equalsIgnoreCase("FWIZ01X1.PMV") || baseCheck.equalsIgnoreCase("FWIZ01X1.MPG")) {
 		_vm->_openingCreditsOpen = false;
 	}
 
 	Video::MPEGPSDecoder decoder;
-	// If you apply the Part 2 MPEGPSDecoder patch below, uncomment the next line:
-	// decoder.setStopAtFirstFrame(true);
 	if (!decoder.loadFile(mpgPath)) {
 		warning("MpgPlayer::play(): Video::MPEGPSDecoder failed to load '%s'", mpgPath.toString().c_str());
 		clearFaceIcons();
@@ -234,7 +223,7 @@ bool MpgPlayer::play(const char *filename, int16 callbackScriptObj) {
 	initGraphics(screenW, screenH, &videoFormat);
 	Graphics::PixelFormat screenFormat = _vm->_system->getScreenFormat();
 
-	// Keep the 8-bit paletted mouse cursor visible while in true-color mode
+	// Keep the 8-bit mouse cursor visible when switching to a true-color screen format
 	CursorMan.replaceCursorPalette(savedPalette, 0, 256);
 
 	_vm->_system->fillScreen(0);
@@ -274,23 +263,195 @@ bool MpgPlayer::play(const char *filename, int16 callbackScriptObj) {
 					outFrame = converted;
 				}
 
+				Graphics::Surface *scaled = nullptr;
+				Graphics::Surface *drawSurf = nullptr;
+
 				if (outFrame->w != screenW || outFrame->h != screenH) {
-					Graphics::Surface *scaled = outFrame->scale(screenW, screenH);
-					drawFaceIcons(*scaled, savedPalette);
-					_vm->_system->copyRectToScreen(scaled->getPixels(), scaled->pitch,
-												   0, 0, scaled->w, scaled->h);
+					scaled = outFrame->scale(screenW, screenH);
+					drawSurf = scaled;
+				} else if (converted) {
+					drawSurf = converted;
+				} else {
+					converted = new Graphics::Surface();
+					converted->copyFrom(*outFrame);
+					drawSurf = converted;
+				}
+
+				// Apply Classic Mac OS gamma curve to the decoded MPEG video frame
+				if (_vm->getPlatform() == Common::kPlatformMacintosh && drawSurf) {
+					static byte macGammaLUT[256];
+					static bool lutInitialized = false;
+					if (!lutInitialized) {
+						for (int i = 0; i < 256; i++) {
+							macGammaLUT[i] = (byte)(pow(i / 255.0, 0.70) * 255.0 + 0.5);
+						}
+						lutInitialized = true;
+					}
+
+					for (int16 y = 0; y < drawSurf->h; y++) {
+						if (screenFormat.bytesPerPixel == 4) {
+							uint32 *ptr = (uint32 *)drawSurf->getBasePtr(0, y);
+							for (int16 x = 0; x < drawSurf->w; x++) {
+								uint8 r, g, b;
+								screenFormat.colorToRGB(ptr[x], r, g, b);
+								ptr[x] = screenFormat.RGBToColor(macGammaLUT[r], macGammaLUT[g], macGammaLUT[b]);
+							}
+						} else if (screenFormat.bytesPerPixel == 2) {
+							uint16 *ptr = (uint16 *)drawSurf->getBasePtr(0, y);
+							for (int16 x = 0; x < drawSurf->w; x++) {
+								uint8 r, g, b;
+								screenFormat.colorToRGB(ptr[x], r, g, b);
+								ptr[x] = screenFormat.RGBToColor(macGammaLUT[r], macGammaLUT[g], macGammaLUT[b]);
+							}
+						}
+					}
+				}
+
+				// Draw any active NPC mood/body icons (from exFACEICON) over the video frame
+				if (!_faceIcons.empty() && drawSurf) {
+					int16 hoveredPicId = -1;
+					const int16 mouseX = _vm->_eventMouseX;
+					const int16 mouseY = _vm->_eventMouseY;
+
+					for (uint i = 0; i < _faceIcons.size(); ++i) {
+						PictureResource *flex = _vm->_res->getPicture(_faceIcons[i].picId);
+						if (!flex)
+							continue;
+
+						Graphics::Surface *iconSurf = flex->getPicture();
+						if (iconSurf && iconSurf->getPixels()) {
+							const byte *pal = flex->hasPalette() ? flex->getPalette() : savedPalette;
+							// Note: Mac scripts pass x in 0..640 range (e.g. 24 for left, 594 for right).
+							// Divide by 2 if needed to fit the 320x200 screen.
+							int16 destX = _faceIcons[i].x;
+							if (destX >= screenW)
+								destX /= 2;
+							int16 destY = _faceIcons[i].y;
+
+							if (mouseX >= destX && mouseX < destX + iconSurf->w &&
+								mouseY >= destY && mouseY < destY + iconSurf->h) {
+								hoveredPicId = _faceIcons[i].picId;
+							}
+
+							for (int16 iy = 0; iy < iconSurf->h; ++iy) {
+								int16 sy = destY + iy;
+								if (sy < 0 || sy >= drawSurf->h)
+									continue;
+								const byte *srcRow = (const byte *)iconSurf->getBasePtr(0, iy);
+								for (int16 ix = 0; ix < iconSurf->w; ++ix) {
+									int16 sx = destX + ix;
+									if (sx < 0 || sx >= drawSurf->w)
+										continue;
+									byte colorIdx = srcRow[ix];
+									if (colorIdx == 0)
+										continue; // color 0 is transparent
+									byte r = pal[colorIdx * 3 + 0];
+									byte g = pal[colorIdx * 3 + 1];
+									byte b = pal[colorIdx * 3 + 2];
+									uint32 pixel = screenFormat.RGBToColor(r, g, b);
+									if (screenFormat.bytesPerPixel == 2)
+										*((uint16 *)drawSurf->getBasePtr(sx, sy)) = (uint16)pixel;
+									else if (screenFormat.bytesPerPixel == 4)
+										*((uint32 *)drawSurf->getBasePtr(sx, sy)) = pixel;
+								}
+							}
+						}
+						_vm->_res->freeResource(flex);
+					}
+
+					// Draw hover tooltip for the hovered mood/body icon (matching DOS script 133 -> object 91)
+					if (hoveredPicId != -1 && _vm->_dat->getVar(55) != 0) {
+						static const int16 kTalkIconObjs[] = {
+							2499, 2496, 2495, 2494, 2493, 2492, 2491, 2490, 2489, 2488
+						};
+						int16 matchedObj = 0;
+						for (uint j = 0; j < ARRAYSIZE(kTalkIconObjs); ++j) {
+							if (_vm->_dat->getObjectProperty(kTalkIconObjs[j], 506) == hoveredPicId) {
+								matchedObj = kTalkIconObjs[j];
+								break;
+							}
+						}
+
+						if (matchedObj != 0) {
+							int16 menuIndex = _vm->_dat->getObjectProperty(matchedObj, 59);
+							int16 textIndex = _vm->_dat->getObjectProperty(matchedObj, 52);
+							if (menuIndex <= 0)
+								menuIndex = 5;
+
+							MenuResource *menu = _vm->_res->getMenu(menuIndex);
+							if (menu) {
+								const char *rawText = menu->getString(textIndex);
+								if (rawText && rawText[0] != '\0') {
+									Common::String tooltip(rawText);
+									if (tooltip[0] >= 'a' && tooltip[0] <= 'z')
+										tooltip.setChar(tooltip[0] - 32, 0);
+
+									int16 fontNum = _vm->_dat->getObjectProperty(91, 99);
+									if (fontNum <= 0)
+										fontNum = 22;
+
+									FontResource *font = _vm->_res->getFont(fontNum);
+									if (font) {
+										int16 textW = font->getTextWidth(tooltip.c_str());
+										int16 textH = font->getHeight();
+
+										int16 tx = mouseX + 5 - (textW / 2);
+										if (tx + textW >= drawSurf->w - 1)
+											tx = drawSurf->w - textW - 2;
+										if (tx < 1)
+											tx = 1;
+
+										int16 ty = mouseY - 15;
+										if (ty < 1)
+											ty = mouseY + 15;
+										if (ty + textH >= drawSurf->h - 1)
+											ty = drawSurf->h - textH - 2;
+
+										int16 textColorIdx = _vm->_dat->getObjectProperty(91, 100);
+										int16 outlineColorIdx = _vm->_dat->getObjectProperty(91, 101);
+										if (textColorIdx < 0 || textColorIdx > 255)
+											textColorIdx = 5;
+										if (outlineColorIdx < 0 || outlineColorIdx > 255)
+											outlineColorIdx = 15;
+
+										uint32 textPixel = screenFormat.RGBToColor(
+											savedPalette[textColorIdx * 3 + 0],
+											savedPalette[textColorIdx * 3 + 1],
+											savedPalette[textColorIdx * 3 + 2]);
+										uint32 outlinePixel = screenFormat.RGBToColor(
+											savedPalette[outlineColorIdx * 3 + 0],
+											savedPalette[outlineColorIdx * 3 + 1],
+											savedPalette[outlineColorIdx * 3 + 2]);
+
+										int16 curX = tx;
+										for (uint cIdx = 0; cIdx < tooltip.size(); ++cIdx) {
+											uint ch = (byte)tooltip[cIdx];
+											if (ch >= 28 && ch <= 255) {
+												for (int16 dy = -1; dy <= 1; ++dy) {
+													for (int16 dx = -1; dx <= 1; ++dx) {
+														if (dx != 0 || dy != 0)
+															drawCharToRGBSurface(drawSurf, font, ch, curX + dx, ty + dy, outlinePixel, screenFormat.bytesPerPixel);
+													}
+												}
+												drawCharToRGBSurface(drawSurf, font, ch, curX, ty, textPixel, screenFormat.bytesPerPixel);
+												curX += font->getCharWidth(ch);
+											}
+										}
+										_vm->_res->freeResource(font);
+									}
+								}
+								_vm->_res->freeResource(menu);
+							}
+						}
+					}
+				}
+
+				_vm->_system->copyRectToScreen(drawSurf->getPixels(), drawSurf->pitch,
+											   0, 0, drawSurf->w, drawSurf->h);
+
+				if (scaled) {
 					scaled->free();
 					delete scaled;
-				} else if (!_faceIcons.empty()) {
-					Graphics::Surface composited;
-					composited.copyFrom(*outFrame);
-					drawFaceIcons(composited, savedPalette);
-					_vm->_system->copyRectToScreen(composited.getPixels(), composited.pitch,
-												   0, 0, composited.w, composited.h);
-					composited.free();
-				} else {
-					_vm->_system->copyRectToScreen(outFrame->getPixels(), outFrame->pitch,
-												   0, 0, outFrame->w, outFrame->h);
 				}
 
 				if (converted) {

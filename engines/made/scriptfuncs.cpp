@@ -865,7 +865,20 @@ int16 ScriptFunctions::sfPlayMovie(int16 argc, int16 *argv) {
 	const char *movieName = _vm->_dat->getObjectString(argv[1]);
 	if (_vm->_mpgPlayer) {
 		CursorMan.showMouse(false);
-		bool completed = _vm->_mpgPlayer->play(movieName);
+		int16 maxFrames = -1;
+		if (_vm->getGameID() == GID_RTZ) {
+		// In Return to Zork Macintosh MPEG, FMPVFO00.MPG contains both the vulture flying away
+		// and the crash into the screen. When the rock is thrown (location 4152 / VultureFlys1,
+		// or string object 4186), the vulture simply flies past the player and the cutscene
+		// must end before the monitor glass breaks (frame 47, ~1.53s).
+		// If the player did not throw the rock (location 4155 / VultureAttacks1, string object 4181),
+		// the full video plays through the glass shattering crash (frames 48-72).
+		if ((argv[1] == 4186 || _vm->_dat->getVar(9) == 4152) &&
+		Common::String(movieName).equalsIgnoreCase("FMPVFO00.MPG")) {
+		maxFrames = 47;
+		}
+		}
+		bool completed = _vm->_mpgPlayer->play(movieName, 0, maxFrames);
 		CursorMan.showMouse(true);
 		return completed ? -1 : 0;
 	}

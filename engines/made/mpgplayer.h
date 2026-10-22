@@ -49,7 +49,7 @@ public:
 	MpgPlayer(MadeEngine *vm, Audio::Mixer *mixer);
 	~MpgPlayer();
 
-	bool play(const char *filename, int16 callbackScriptObj = 0);
+	bool play(const char *filename, int16 callbackScriptObj = 0, int16 maxFrames = -1);
 
 	void addFaceIcon(int16 picId, int16 x, int16 y);
 	void clearFaceIcons();

@@ -164,7 +164,7 @@ MpgStreamType MpgPlayer::inspectHeader(Common::SeekableReadStream &stream) const
 	return kMpgStreamUnknown;
 }
 
-bool MpgPlayer::play(const char *filename, int16 callbackScriptObj) {
+bool MpgPlayer::play(const char *filename, int16 callbackScriptObj, int16 maxFrames) {
 	Common::Path mpgPath = resolveMpgPath(filename);
 
 	Common::File probeFile;
@@ -232,10 +232,24 @@ bool MpgPlayer::play(const char *filename, int16 callbackScriptObj) {
 	ScriptInterpreter si(_vm);
 	int16 frameNumber = 0;
 	bool aborted = false;
-
+	
+	// In Return to Zork (Macintosh MPEG), FMPVFO00.MPG contains both the fly-off and
+ 	// the monitor-shattering attack. When the rock is thrown (location 4152 / VultureFlys1),
+ 	// the video should exit at frame 47 so the vulture flies past without cracking the screen.
+ 	if (_vm->getGameID() == GID_RTZ && maxFrames <= 0) {
+ 	Common::Path resolved = resolveMpgPath(filename);
+ 	Common::String baseName = resolved.getLastComponent().toString();
+	
+	if (baseName.equalsIgnoreCase("FMPVFO00.MPG") && _vm->_dat->getVar(9) == 4152) {
+	maxFrames = 47;
+	}
+	}
 	decoder.start();
 
 	while (!_vm->shouldQuit() && !aborted && !decoder.endOfVideo()) {
+		if (maxFrames > 0 && frameNumber >= maxFrames) {
+		break;
+		}
 		if (decoder.needsUpdate()) {
 			// If called via sfMovieCall, execute the per-frame script callback
 			if (callbackScriptObj != 0) {

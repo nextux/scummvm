@@ -476,7 +476,10 @@ Common::Error MadeEngine::run() {
 		_res->openResourceBlocks();
 	} else if (getGameID() == GID_MANHOLE_NE) {
 		_dat->open("manhole.dat");
-		_res->open("manhole.prj");
+		if (getVersion() == 1)
+			_res->openResourceBlocks();
+		else
+			_res->open("manhole.prj");
 
 		if (ConfMan.hasKey("windows_cursors") && ConfMan.getBool("windows_cursors"))
 			loadWin16Cursor("manhole");

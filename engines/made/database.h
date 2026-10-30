@@ -54,6 +54,8 @@ public:
 	virtual byte getValueCount() const = 0;
 	virtual byte *getData() const = 0;
 
+	uint16 getSize() const { return _objSize; }
+
 	bool isByteArray() const;
 	bool isWordArray() const;
 	bool isObject() const;

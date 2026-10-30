@@ -85,7 +85,7 @@ static const MadeGameDescription gameDescriptions[] = {
 		// The Manhole (FM Towns, CD-ROM) 1990
 		//  In fact, this is the NE version, but not labeled as such
 		{
-			"manhole",
+			"manholene",
 			"",
 			AD_ENTRY1s("manhole.dat", "2f14b5d87a862aad25701514dc282475", 119667),
 			Common::JA_JPN,
@@ -93,7 +93,7 @@ static const MadeGameDescription gameDescriptions[] = {
 			ADGF_CD | ADGF_UNSTABLE,
 			GUIO1(GUIO_NOSPEECH)
 		},
-		GID_MANHOLE,
+		GID_MANHOLE_NE,
 		GF_CD,
 		1, 0,
 	},

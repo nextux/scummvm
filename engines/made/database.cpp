@@ -344,7 +344,7 @@ void GameDatabase::reload() {
 // Variable and Object lookups are technically 1-based, but
 //  we create an array with a dummy entry at idx = 0 (see GameDatabase::load())
 int16 GameDatabase::getVar(int16 index) const {
-	if (index < 1) {
+	if (index < 0) {
 		warning("Request to get variable %d", index);
 		return 0;
 	}
@@ -353,7 +353,7 @@ int16 GameDatabase::getVar(int16 index) const {
 }
 
 void GameDatabase::setVar(int16 index, int16 value) {
-	if (index < 1) {
+	if (index < 0) {
 		warning("Request to set variable %d", index);
 		return;
 	}
@@ -371,11 +371,15 @@ Object *GameDatabase::getObject(int16 index) const {
 }
 
 const char *GameDatabase::getObjectString(int16 index) const {
-	Object *obj = getObject(index);
-	if (obj)
-		return obj->getString();
-	else
+	if (index < 1)
 		return "";
+
+	Object *obj = getObject(index);
+	if (obj) {
+		const char *str = obj->getString();
+		return str ? str : "";
+	}
+	return "";
 }
 
 void GameDatabase::setObjectString(int16 index, const char *str) {
@@ -530,17 +534,26 @@ int16 GameDatabaseV1::savegame(const char *filename, const char *description, in
 
 int16 GameDatabaseV1::loadgame(const char *filename, int16 version) {
 	Common::InSaveFile *in = g_system->getSavefileManager()->openForLoading(filename);
-	if (in == nullptr) {
+	if (!in) {
 		warning("Can't open file '%s', game not loaded", filename);
 		return 1;
 	}
+
+	// Check whether the savefile uses word-aligned objects (original DOS / new saves)
+	// or unaligned objects (older ScummVM saves) so existing saves continue to load.
+	int32 expectedAlignedSize = _gameState.size() - 2;
+	for (uint i = 0; i < _objects.size(); i++) {
+		uint16 sz = _objects[i]->getSize();
+		expectedAlignedSize += sz + (sz % 2);
+	}
+	const bool wordAligned = (in->size() == expectedAlignedSize);
 
 	// Variable 0 is not loaded
 	in->read(_gameState.data() + 2, _gameState.size() - 2);
 	for (uint i = 0; i < _objects.size(); i++) {
 		int objSize = _objects[i]->load(*in);
 		// objects in the original savefiles are word-aligned
-		if (objSize % 2)
+		if (wordAligned && (objSize % 2))
 			in->skip(1);
 	}
 	delete in;
@@ -753,7 +766,7 @@ void GameDatabaseV3::reloadFromStream(Common::SeekableReadStream &sourceS) {
 bool GameDatabaseV3::getSavegameDescription(const char *filename, Common::String &description, int16 version) {
 	Common::InSaveFile *in = g_system->getSavefileManager()->openForLoading(filename);
 
-	if (in == nullptr) {
+	if (!in) {
 		return false;
 	}
 

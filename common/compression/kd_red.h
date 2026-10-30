@@ -43,27 +43,27 @@ private:
 	bool seekFile(Common::File &fd, FileEntry &fileEntry, const char *filename);
 };
 
-const uint BITBUFSIZ = 16;
-const uint DICBIT = 13;
-const uint DICSIZ = 1 << DICBIT;
-const uint MATCHBIT = 8;
-const uint MAXMATCH = 256;
-const uint THRESHOLD = 3;
-const uint NC = 255 + MAXMATCH + 2 - THRESHOLD;
-const uint CBIT = 9;
-const uint CODE_BIT = 16;
-const uint NP = DICBIT + 1;
-const int NT = CODE_BIT + 3;
-const uint PBIT = 4;
-const uint TBIT = 5;
-const uint NPT = NT;
-
 class LzhDecompressor {
 public:
 	LzhDecompressor();
 	~LzhDecompressor();
 	int decompress(Common::SeekableReadStream &source, byte *dest, uint32 compSize, uint32 origSize);
 private:
+	static const uint BITBUFSIZ = 16;
+	static const uint DICBIT = 13;
+	static const uint DICSIZ = 1 << DICBIT;
+	static const uint MATCHBIT = 8;
+	static const uint MAXMATCH = 256;
+	static const uint THRESHOLD = 3;
+	static const uint NC = 255 + MAXMATCH + 2 - THRESHOLD;
+	static const uint CBIT = 9;
+	static const uint CODE_BIT = 16;
+	static const uint NP = DICBIT + 1;
+	static const int NT = CODE_BIT + 3;
+	static const uint PBIT = 4;
+	static const uint TBIT = 5;
+	static const uint NPT = NT;
+
 	Common::SeekableReadStream *_source;
 	uint32 _compSize, _blockPos;
 
